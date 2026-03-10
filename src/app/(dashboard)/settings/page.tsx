@@ -350,6 +350,126 @@ export default function SettingsPage() {
           You don&apos;t belong to any farms yet. Create one above.
         </p>
       )}
+
+      {/* Feedback */}
+      <FeedbackSection senderName={session?.user?.name ?? ""} senderEmail={session?.user?.email ?? ""} />
     </div>
+  );
+}
+
+function FeedbackSection({ senderName, senderEmail }: { senderName: string; senderEmail: string }) {
+  const [category, setCategory] = useState("Bug");
+  const [subject, setSubject] = useState("");
+  const [message, setMessage] = useState("");
+  const [messageError, setMessageError] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [success, setSuccess] = useState(false);
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!message.trim()) {
+      setMessageError("Message is required");
+      return;
+    }
+    setMessageError("");
+    setSubmitting(true);
+    try {
+      const res = await fetch("/api/feedback", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ category, subject, message }),
+      });
+      if (res.ok) {
+        setSuccess(true);
+        setSubject("");
+        setMessage("");
+        setCategory("Bug");
+      } else {
+        const data = await res.json();
+        setMessageError(data.error || "Failed to send feedback");
+      }
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <section className="rounded-xl border border-border bg-surface p-6">
+      <h2 className="text-base font-semibold text-text mb-1">Send Feedback</h2>
+      <p className="text-sm text-text-light mb-4">Report a bug or suggest an improvement.</p>
+
+      {success ? (
+        <div className="rounded-lg bg-success/10 border border-success/30 px-4 py-3 text-sm text-success">
+          Thanks for your feedback! We&apos;ll look into it.
+          <button
+            onClick={() => setSuccess(false)}
+            className="ml-3 underline text-success hover:no-underline"
+          >
+            Send another
+          </button>
+        </div>
+      ) : (
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <p className="text-sm text-text-light">
+            Sending as <span className="font-medium text-text">{senderName || senderEmail}</span>
+            {senderName && <span className="text-text-light"> ({senderEmail})</span>}
+          </p>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-sm font-medium text-text mb-1">Category</label>
+              <select
+                value={category}
+                onChange={(e) => setCategory(e.target.value)}
+                className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-text focus:outline-none focus:ring-2 focus:ring-primary/50"
+              >
+                <option>Bug</option>
+                <option>Suggestion</option>
+                <option>Other</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-text mb-1">
+                Subject <span className="font-normal text-text-light">(optional)</span>
+              </label>
+              <input
+                type="text"
+                value={subject}
+                onChange={(e) => setSubject(e.target.value)}
+                placeholder="Brief summary"
+                maxLength={100}
+                className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-text placeholder:text-text-light focus:outline-none focus:ring-2 focus:ring-primary/50"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-text mb-1">Message</label>
+            <textarea
+              value={message}
+              onChange={(e) => { setMessage(e.target.value); if (messageError) setMessageError(""); }}
+              placeholder="Describe the issue or suggestion..."
+              rows={5}
+              maxLength={2000}
+              className={`w-full rounded-lg border bg-background px-3 py-2 text-sm text-text placeholder:text-text-light focus:outline-none focus:ring-2 focus:ring-primary/50 resize-none ${messageError ? "border-error" : "border-border"}`}
+            />
+            <div className="flex justify-between mt-0.5">
+              {messageError ? (
+                <p className="text-xs text-error">{messageError}</p>
+              ) : <span />}
+              <p className="text-xs text-text-light">{message.length}/2000</p>
+            </div>
+          </div>
+
+          <button
+            type="submit"
+            disabled={submitting}
+            className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90 disabled:opacity-50 transition-colors"
+          >
+            {submitting ? "Sending…" : "Send Feedback"}
+          </button>
+        </form>
+      )}
+    </section>
   );
 }
