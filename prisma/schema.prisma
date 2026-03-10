@@ -1,0 +1,343 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model User {
+  id            String           @id @default(cuid())
+  name          String?
+  email         String           @unique
+  emailVerified DateTime?
+  password      String?
+  image         String?
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+  accounts      Account[]
+  sessions      Session[]
+  memberships   FarmMembership[]
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+model Farm {
+  id             String           @id @default(cuid())
+  name           String
+  imageUrl       String?
+  joinCode       String           @unique @default(cuid())
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+  members        FarmMembership[]
+  goats          Goat[]
+  breedingEvents BreedingEvent[]
+  expenses       Expense[]
+  sales          Sale[]
+  vaccinations   Vaccination[]
+  medications    Medication[]
+  vetVisits      VetVisit[]
+  dewormings     Deworming[]
+  healthNotes    HealthNote[]
+}
+
+model FarmMembership {
+  id        String   @id @default(cuid())
+  farmId    String
+  userId    String
+  isOwner   Boolean  @default(false)
+  createdAt DateTime @default(now())
+  farm      Farm     @relation(fields: [farmId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([farmId, userId])
+  @@index([userId])
+  @@index([farmId])
+}
+
+model Goat {
+  id             String          @id @default(cuid())
+  farmId         String?
+  name           String
+  tagId          String
+  breed          String?
+  dateOfBirth    DateTime?
+  gender         Gender
+  colorMarkings  String?
+  photoUrl       String?
+  purchaseDate   DateTime?
+  purchasePrice  Decimal?        @db.Decimal(10, 2)
+  damId          String?
+  sireId         String?
+  status         GoatStatus      @default(ACTIVE)
+  notes          String?
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  farm           Farm?           @relation(fields: [farmId], references: [id])
+  breedingAsBuck BreedingEvent[] @relation("BuckBreeding")
+  breedingAsDoe  BreedingEvent[] @relation("DoeBreeding")
+  dewormings     Deworming[]
+  expenses       Expense[]
+  dam            Goat?           @relation("DamOffspring", fields: [damId], references: [id])
+  damOffspring   Goat[]          @relation("DamOffspring")
+  sire           Goat?           @relation("SireOffspring", fields: [sireId], references: [id])
+  sireOffspring  Goat[]          @relation("SireOffspring")
+  healthNotes    HealthNote[]
+  kids           Kid?
+  medications    Medication[]
+  sale           Sale?
+  vaccinations   Vaccination[]
+  vetVisits      VetVisit[]
+
+  @@unique([farmId, tagId])
+  @@index([farmId])
+  @@index([status])
+  @@index([gender])
+  @@index([damId])
+  @@index([sireId])
+  @@index([dateOfBirth])
+}
+
+model Vaccination {
+  id          String    @id @default(cuid())
+  farmId      String?
+  goatId      String
+  name        String
+  dateGiven   DateTime
+  nextDueDate DateTime?
+  notes       String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  farm        Farm?     @relation(fields: [farmId], references: [id])
+  goat        Goat      @relation(fields: [goatId], references: [id], onDelete: Cascade)
+
+  @@index([farmId])
+  @@index([goatId])
+  @@index([nextDueDate])
+  @@index([farmId, nextDueDate])
+}
+
+model Medication {
+  id        String    @id @default(cuid())
+  farmId    String?
+  goatId    String
+  name      String
+  dosage    String?
+  startDate DateTime
+  endDate   DateTime?
+  notes     String?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  farm      Farm?     @relation(fields: [farmId], references: [id])
+  goat      Goat      @relation(fields: [goatId], references: [id], onDelete: Cascade)
+
+  @@index([farmId])
+  @@index([goatId])
+}
+
+model VetVisit {
+  id        String   @id @default(cuid())
+  farmId    String?
+  goatId    String
+  date      DateTime
+  reason    String
+  diagnosis String?
+  treatment String?
+  cost      Decimal? @db.Decimal(10, 2)
+  vetName   String?
+  notes     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  farm      Farm?    @relation(fields: [farmId], references: [id])
+  goat      Goat     @relation(fields: [goatId], references: [id], onDelete: Cascade)
+
+  @@index([farmId])
+  @@index([goatId])
+}
+
+model Deworming {
+  id          String    @id @default(cuid())
+  farmId      String?
+  goatId      String
+  productName String
+  dateGiven   DateTime
+  nextDueDate DateTime?
+  notes       String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  farm        Farm?     @relation(fields: [farmId], references: [id])
+  goat        Goat      @relation(fields: [goatId], references: [id], onDelete: Cascade)
+
+  @@index([farmId])
+  @@index([goatId])
+  @@index([nextDueDate])
+  @@index([farmId, nextDueDate])
+}
+
+model HealthNote {
+  id        String   @id @default(cuid())
+  farmId    String?
+  goatId    String
+  date      DateTime
+  note      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  farm      Farm?    @relation(fields: [farmId], references: [id])
+  goat      Goat     @relation(fields: [goatId], references: [id], onDelete: Cascade)
+
+  @@index([farmId])
+  @@index([goatId])
+}
+
+model BreedingEvent {
+  id              String         @id @default(cuid())
+  farmId          String?
+  doeId           String
+  buckId          String
+  breedingDate    DateTime
+  expectedDueDate DateTime?
+  status          BreedingStatus @default(PENDING)
+  notes           String?
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+  farm            Farm?          @relation(fields: [farmId], references: [id])
+  buck            Goat           @relation("BuckBreeding", fields: [buckId], references: [id])
+  doe             Goat           @relation("DoeBreeding", fields: [doeId], references: [id])
+  kiddingRecord   KiddingRecord?
+
+  @@index([farmId])
+  @@index([status])
+  @@index([doeId])
+  @@index([buckId])
+  @@index([expectedDueDate])
+}
+
+model KiddingRecord {
+  id              String        @id @default(cuid())
+  breedingEventId String        @unique
+  kiddingDate     DateTime
+  complications   String?
+  notes           String?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  kids            Kid[]
+  breedingEvent   BreedingEvent @relation(fields: [breedingEventId], references: [id], onDelete: Cascade)
+}
+
+model Kid {
+  id              String        @id @default(cuid())
+  kiddingRecordId String
+  goatId          String?       @unique
+  gender          Gender
+  birthWeight     Decimal?      @db.Decimal(5, 2)
+  status          KidStatus     @default(ALIVE)
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  goat            Goat?         @relation(fields: [goatId], references: [id])
+  kiddingRecord   KiddingRecord @relation(fields: [kiddingRecordId], references: [id], onDelete: Cascade)
+}
+
+model Expense {
+  id          String          @id @default(cuid())
+  farmId      String?
+  goatId      String?
+  category    ExpenseCategory
+  amount      Decimal         @db.Decimal(10, 2)
+  date        DateTime
+  description String?
+  vendorName  String?
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+  farm        Farm?           @relation(fields: [farmId], references: [id])
+  goat        Goat?           @relation(fields: [goatId], references: [id])
+
+  @@index([farmId])
+  @@index([goatId])
+  @@index([date])
+  @@index([category])
+  @@index([farmId, category])
+}
+
+model Sale {
+  id           String   @id @default(cuid())
+  farmId       String?
+  goatId       String   @unique
+  saleDate     DateTime
+  salePrice    Decimal  @db.Decimal(10, 2)
+  buyerName    String?
+  buyerContact String?
+  notes        String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  farm         Farm?    @relation(fields: [farmId], references: [id])
+  goat         Goat     @relation(fields: [goatId], references: [id])
+
+  @@index([farmId])
+  @@index([saleDate])
+}
+
+enum Gender {
+  DOE
+  BUCK
+  WETHER
+}
+
+enum GoatStatus {
+  ACTIVE
+  SOLD
+  DECEASED
+}
+
+enum BreedingStatus {
+  PENDING
+  CONFIRMED
+  FAILED
+  DELIVERED
+}
+
+enum KidStatus {
+  ALIVE
+  STILLBORN
+}
+
+enum ExpenseCategory {
+  FEED
+  MEDICAL
+  PURCHASE
+  EQUIPMENT
+  OTHER
+}
