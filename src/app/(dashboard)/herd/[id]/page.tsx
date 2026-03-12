@@ -50,6 +50,7 @@ function formatDate(dateStr: string | null) {
     month: "short",
     day: "numeric",
     year: "numeric",
+    timeZone: "UTC",
   });
 }
 
@@ -403,7 +404,7 @@ function TreeCard({ node }: { node: TreeNode }) {
         #{node.tagId}
       </p>
       {node.gender && !node.isCurrent && (
-        <p className="text-xs mt-0.5" style={{ color: node.gender === "DOE" ? "#2D5A3D" : "#8B6914" }}>
+        <p className={`text-xs mt-0.5 ${node.gender === "DOE" ? "text-primary" : "text-accent"}`}>
           {node.gender}
         </p>
       )}
@@ -453,23 +454,13 @@ function FamilyTree({
                 )}
               </div>
             </div>
-            {/* Connector lines down to this goat */}
-            <div className="flex w-full justify-center gap-6 h-8 relative">
-              <div className="w-36 flex justify-center">
-                <div className="w-px bg-border h-full" />
-              </div>
-              <div className="w-36 flex justify-center">
-                <div className="w-px bg-border h-full" />
-              </div>
+            {/* Connector: left/right verticals meet horizontal bar, center vertical continues down */}
+            <div className="relative w-full" style={{ height: "2.5rem" }}>
+              <div className="absolute w-px bg-border" style={{ left: "calc(50% - 84px)", top: 0, height: "50%" }} />
+              <div className="absolute w-px bg-border" style={{ right: "calc(50% - 84px)", top: 0, height: "50%" }} />
+              <div className="absolute border-t border-border" style={{ left: "calc(50% - 84px)", right: "calc(50% - 84px)", top: "50%" }} />
+              <div className="absolute w-px bg-border" style={{ left: "calc(50% - 0.5px)", top: "50%", bottom: 0 }} />
             </div>
-            {/* Horizontal bar connecting parents to center */}
-            <div className="relative flex w-full justify-center h-0">
-              <div
-                className="absolute border-t border-border"
-                style={{ left: "calc(50% - 72px)", right: "calc(50% - 72px)", top: "-16px" }}
-              />
-            </div>
-            <div className="w-px bg-border h-4" />
           </>
         )}
 

@@ -1,6 +1,7 @@
 "use client";
 
 import { signOut } from "next-auth/react";
+import ThemeToggle from "@/components/ui/ThemeToggle";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import Image from "next/image";
@@ -101,6 +102,7 @@ export default function MobileHeader() {
         )}
       </div>
 
+      <ThemeToggle compact />
       <button
         onClick={() => signOut({ callbackUrl: "/login" })}
         className="rounded-lg p-2 text-text-light hover:bg-background flex-shrink-0"

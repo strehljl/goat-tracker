@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Image from "next/image";
 import Button from "@/components/ui/Button";
@@ -37,6 +37,7 @@ function formatDate(dateStr: string | null) {
     month: "short",
     day: "numeric",
     year: "numeric",
+    timeZone: "UTC",
   });
 }
 
@@ -50,6 +51,8 @@ export default function HerdPage() {
   const [genderFilter, setGenderFilter] = useState(searchParams.get("gender") ?? "");
   const [bornThisYear, setBornThisYear] = useState(searchParams.get("bornThisYear") === "true");
   const [showAddModal, setShowAddModal] = useState(false);
+  const [sortField, setSortField] = useState("name");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
 
   const fetchGoats = useCallback(async () => {
     const params = new URLSearchParams();
@@ -91,10 +94,39 @@ export default function HerdPage() {
     fetchGoats();
   };
 
+  const handleSort = (field: string) => {
+    if (sortField === field) {
+      setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    } else {
+      setSortField(field);
+      setSortDir("asc");
+    }
+  };
+
+  const sortedGoats = useMemo(() => {
+    return [...goats].sort((a, b) => {
+      let va: string | null = null;
+      let vb: string | null = null;
+      if (sortField === "name") { va = a.name; vb = b.name; }
+      else if (sortField === "tagId") { va = a.tagId; vb = b.tagId; }
+      else if (sortField === "breed") { va = a.breed; vb = b.breed; }
+      else if (sortField === "gender") { va = a.gender; vb = b.gender; }
+      else if (sortField === "dateOfBirth") { va = a.dateOfBirth; vb = b.dateOfBirth; }
+      else if (sortField === "status") { va = a.status; vb = b.status; }
+
+      if (va == null && vb == null) return 0;
+      if (va == null) return sortDir === "asc" ? 1 : -1;
+      if (vb == null) return sortDir === "asc" ? -1 : 1;
+      const cmp = va.localeCompare(vb);
+      return sortDir === "asc" ? cmp : -cmp;
+    });
+  }, [goats, sortField, sortDir]);
+
   const columns = [
     {
       key: "name",
       header: "Name",
+      sortable: true,
       render: (goat: Goat) => (
         <div className="flex items-center gap-3">
           {goat.photoUrl ? (
@@ -110,21 +142,26 @@ export default function HerdPage() {
               {goat.name[0]}
             </div>
           )}
-          <div>
-            <span className="font-medium text-text">{goat.name}</span>
-            <span className="ml-2 text-xs text-text-light">#{goat.tagId}</span>
-          </div>
+          <span className="font-medium text-text">{goat.name}</span>
         </div>
       ),
     },
     {
+      key: "tagId",
+      header: "Tag ID",
+      sortable: true,
+      render: (goat: Goat) => <span className="text-text-light">#{goat.tagId}</span>,
+    },
+    {
       key: "breed",
       header: "Breed",
+      sortable: true,
       render: (goat: Goat) => goat.breed || "—",
     },
     {
       key: "gender",
       header: "Gender",
+      sortable: true,
       render: (goat: Goat) => (
         <Badge variant={goat.gender === "DOE" ? "success" : "info"}>
           {goat.gender}
@@ -134,12 +171,14 @@ export default function HerdPage() {
     {
       key: "dateOfBirth",
       header: "DOB",
+      sortable: true,
       render: (goat: Goat) => formatDate(goat.dateOfBirth),
       className: "hidden sm:table-cell",
     },
     {
       key: "status",
       header: "Status",
+      sortable: true,
       render: (goat: Goat) => (
         <Badge variant={statusColors[goat.status] || "default"}>
           {goat.status}
@@ -209,10 +248,13 @@ export default function HerdPage() {
         ) : (
           <Table
             columns={columns}
-            data={goats}
+            data={sortedGoats}
             keyField="id"
             onRowClick={(goat) => router.push(`/herd/${goat.id}`)}
             emptyMessage="No goats found. Add your first goat to get started!"
+            sortField={sortField}
+            sortDir={sortDir}
+            onSort={handleSort}
           />
         )}
       </div>

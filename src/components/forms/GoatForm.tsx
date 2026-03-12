@@ -79,8 +79,8 @@ export default function GoatForm({
 
   useEffect(() => {
     Promise.all([
-      fetch("/api/goats?status=ACTIVE&gender=DOE").then((r) => r.json()),
-      fetch("/api/goats?status=ACTIVE&gender=BUCK").then((r) => r.json()),
+      fetch("/api/goats?gender=DOE").then((r) => r.json()),
+      fetch("/api/goats?gender=BUCK").then((r) => r.json()),
     ])
       .then(([does, bucks]: [GoatOption[], GoatOption[]]) => {
         setDoes(does);

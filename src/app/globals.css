@@ -1,6 +1,13 @@
 @import "tailwindcss";
 
+/* Fonts must use @theme inline so var() references to Geist CSS vars resolve correctly */
 @theme inline {
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+/* Colors use plain @theme so utilities generate var() references, enabling .dark overrides */
+@theme {
   --color-primary: #2D5A3D;
   --color-primary-light: #3A7350;
   --color-primary-dark: #1E3D29;
@@ -18,12 +25,27 @@
   --color-error: #DC2626;
   --color-success: #16A34A;
   --color-warning: #F59E0B;
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
 }
 
 body {
   background-color: var(--color-background);
   color: var(--color-text);
   font-family: var(--font-sans), Arial, Helvetica, sans-serif;
+}
+
+.dark {
+  --color-background: #1C1A16;
+  --color-surface: #252220;
+  --color-text: #F0EBE0;
+  --color-text-light: #9E8E85;
+  --color-border: #3E3530;
+  --color-primary: #4A8A5C;
+  --color-primary-light: #5CA870;
+  --color-primary-dark: #336645;
+  --color-secondary: #8AB08E;
+  --color-secondary-light: #A8C8AC;
+  --color-secondary-dark: #6A9070;
+  --color-accent: #C49A2E;
+  --color-accent-light: #D4AF4A;
+  --color-accent-dark: #9A7820;
 }
