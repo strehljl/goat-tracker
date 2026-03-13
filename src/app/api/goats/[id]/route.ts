@@ -19,6 +19,7 @@ export async function GET(
       include: {
         dam: { select: { id: true, name: true, tagId: true, photoUrl: true } },
         sire: { select: { id: true, name: true, tagId: true, photoUrl: true } },
+        location: { select: { id: true, name: true } },
         damOffspring: {
           select: { id: true, name: true, tagId: true, gender: true, dateOfBirth: true, status: true, photoUrl: true },
           orderBy: { dateOfBirth: "desc" },
@@ -94,6 +95,7 @@ export async function PUT(
       purchasePrice,
       damId,
       sireId,
+      locationId: bodyLocationId,
       status,
       notes,
     } = body;
@@ -150,12 +152,14 @@ export async function PUT(
         purchasePrice: purchasePrice ? parseFloat(purchasePrice) : null,
         damId: damId || null,
         sireId: sireId || null,
+        locationId: bodyLocationId || null,
         status: status || "ACTIVE",
         notes: notes || null,
       },
       include: {
         dam: { select: { id: true, name: true, tagId: true } },
         sire: { select: { id: true, name: true, tagId: true } },
+        location: { select: { id: true, name: true } },
       },
     });
 

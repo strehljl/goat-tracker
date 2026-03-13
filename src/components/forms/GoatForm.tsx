@@ -13,6 +13,11 @@ interface GoatOption {
   gender: string;
 }
 
+interface LocationOption {
+  id: string;
+  name: string;
+}
+
 export interface GoatFormData {
   name: string;
   tagId: string;
@@ -25,6 +30,7 @@ export interface GoatFormData {
   purchasePrice: string;
   damId: string;
   sireId: string;
+  locationId: string;
   status: string;
   notes: string;
 }
@@ -60,6 +66,7 @@ const emptyForm: GoatFormData = {
   purchasePrice: "",
   damId: "",
   sireId: "",
+  locationId: "",
   status: "ACTIVE",
   notes: "",
 };
@@ -76,15 +83,18 @@ export default function GoatForm({
   const [uploading, setUploading] = useState(false);
   const [does, setDoes] = useState<GoatOption[]>([]);
   const [bucks, setBucks] = useState<GoatOption[]>([]);
+  const [locationOptions, setLocationOptions] = useState<LocationOption[]>([]);
 
   useEffect(() => {
     Promise.all([
       fetch("/api/goats?gender=DOE").then((r) => r.json()),
       fetch("/api/goats?gender=BUCK").then((r) => r.json()),
+      fetch("/api/farms/current/locations").then((r) => r.ok ? r.json() : []),
     ])
-      .then(([does, bucks]: [GoatOption[], GoatOption[]]) => {
+      .then(([does, bucks, locs]: [GoatOption[], GoatOption[], LocationOption[]]) => {
         setDoes(does);
         setBucks(bucks);
+        setLocationOptions(Array.isArray(locs) ? locs : []);
       })
       .catch(console.error);
   }, []);
@@ -250,13 +260,23 @@ export default function GoatForm({
         />
       </div>
 
-      <Select
-        id="status"
-        label="Status"
-        value={form.status}
-        onChange={(e) => set("status", e.target.value)}
-        options={statusOptions}
-      />
+      <div className="grid gap-4 sm:grid-cols-2">
+        <Select
+          id="locationId"
+          label="Location"
+          value={form.locationId}
+          onChange={(e) => set("locationId", e.target.value)}
+          options={locationOptions.map((l) => ({ value: l.id, label: l.name }))}
+          placeholder="No location"
+        />
+        <Select
+          id="status"
+          label="Status"
+          value={form.status}
+          onChange={(e) => set("status", e.target.value)}
+          options={statusOptions}
+        />
+      </div>
 
       {/* Photo upload */}
       <div>

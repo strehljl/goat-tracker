@@ -21,8 +21,14 @@ interface Goat {
   gender: string;
   status: string;
   photoUrl: string | null;
+  location: { id: string; name: string } | null;
   dam: { id: string; name: string; tagId: string } | null;
   sire: { id: string; name: string; tagId: string } | null;
+}
+
+interface LocationOption {
+  id: string;
+  name: string;
 }
 
 const statusColors: Record<string, "success" | "warning" | "error"> = {
@@ -49,6 +55,8 @@ export default function HerdPage() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState(searchParams.get("status") ?? "");
   const [genderFilter, setGenderFilter] = useState(searchParams.get("gender") ?? "");
+  const [locationFilter, setLocationFilter] = useState(searchParams.get("locationId") ?? "");
+  const [locationOptions, setLocationOptions] = useState<LocationOption[]>([]);
   const [bornThisYear, setBornThisYear] = useState(searchParams.get("bornThisYear") === "true");
   const [showAddModal, setShowAddModal] = useState(false);
   const [sortField, setSortField] = useState("name");
@@ -59,6 +67,7 @@ export default function HerdPage() {
     if (search) params.set("search", search);
     if (statusFilter) params.set("status", statusFilter);
     if (genderFilter) params.set("gender", genderFilter);
+    if (locationFilter) params.set("locationId", locationFilter);
     if (bornThisYear) params.set("bornThisYear", "true");
 
     try {
@@ -70,7 +79,14 @@ export default function HerdPage() {
     } finally {
       setLoading(false);
     }
-  }, [search, statusFilter, genderFilter, bornThisYear]);
+  }, [search, statusFilter, genderFilter, locationFilter, bornThisYear]);
+
+  useEffect(() => {
+    fetch("/api/farms/current/locations")
+      .then((r) => r.ok ? r.json() : [])
+      .then((locs: LocationOption[]) => setLocationOptions(Array.isArray(locs) ? locs : []))
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     setLoading(true);
@@ -113,6 +129,7 @@ export default function HerdPage() {
       else if (sortField === "gender") { va = a.gender; vb = b.gender; }
       else if (sortField === "dateOfBirth") { va = a.dateOfBirth; vb = b.dateOfBirth; }
       else if (sortField === "status") { va = a.status; vb = b.status; }
+      else if (sortField === "location") { va = a.location?.name ?? null; vb = b.location?.name ?? null; }
 
       if (va == null && vb == null) return 0;
       if (va == null) return sortDir === "asc" ? 1 : -1;
@@ -151,6 +168,13 @@ export default function HerdPage() {
       header: "Tag ID",
       sortable: true,
       render: (goat: Goat) => <span className="text-text-light">#{goat.tagId}</span>,
+    },
+    {
+      key: "location",
+      header: "Location",
+      sortable: true,
+      render: (goat: Goat) => goat.location?.name ?? "—",
+      className: "hidden sm:table-cell",
     },
     {
       key: "breed",
@@ -231,6 +255,16 @@ export default function HerdPage() {
           placeholder="All genders"
           className="w-40"
         />
+        {locationOptions.length > 0 && (
+          <Select
+            id="locationFilter"
+            value={locationFilter}
+            onChange={(e) => setLocationFilter(e.target.value)}
+            options={locationOptions.map((l) => ({ value: l.id, label: l.name }))}
+            placeholder="All locations"
+            className="w-40"
+          />
+        )}
         {bornThisYear && (
           <button
             onClick={() => setBornThisYear(false)}

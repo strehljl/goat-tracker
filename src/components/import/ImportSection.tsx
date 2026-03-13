@@ -7,9 +7,9 @@ import Badge from "@/components/ui/Badge";
 import { parseCSV, validateAndNormalize, ParsedImportRow, GoatImportRow } from "@/lib/csvParser";
 
 const TEMPLATE_HEADERS =
-  "name,tagId,gender,breed,dateOfBirth,colorMarkings,purchaseDate,purchasePrice,damTagId,sireTagId,status,notes";
+  "name,tagId,gender,breed,dateOfBirth,colorMarkings,purchaseDate,purchasePrice,damTagId,sireTagId,location,status,notes";
 const TEMPLATE_EXAMPLE =
-  "Daisy,GT-001,DOE,Nubian,2022-03-15,Brown with white ears,2022-04-01,250.00,,,ACTIVE,First goat";
+  "Daisy,GT-001,DOE,Nubian,2022-03-15,Brown with white ears,2022-04-01,250.00,,,Pen 1,ACTIVE,First goat";
 
 type ImportPhase = "idle" | "previewing" | "importing" | "done";
 
@@ -29,6 +29,7 @@ const COLUMNS = [
   { key: "purchasePrice", label: "Price" },
   { key: "damTagId", label: "Dam Tag" },
   { key: "sireTagId", label: "Sire Tag" },
+  { key: "location", label: "Location" },
   { key: "status", label: "Status" },
   { key: "notes", label: "Notes" },
 ] as const;

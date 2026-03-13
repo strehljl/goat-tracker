@@ -25,6 +25,7 @@ interface GoatDetail {
   status: string;
   notes: string | null;
   createdAt: string;
+  location: { id: string; name: string } | null;
   dam: { id: string; name: string; tagId: string; photoUrl: string | null } | null;
   sire: { id: string; name: string; tagId: string; photoUrl: string | null } | null;
   damOffspring: { id: string; name: string; tagId: string; gender: string; dateOfBirth: string | null; status: string; photoUrl: string | null }[];
@@ -146,6 +147,7 @@ export default function GoatDetailPage({ params }: { params: Promise<{ id: strin
     purchasePrice: goat.purchasePrice || "",
     damId: goat.dam?.id || "",
     sireId: goat.sire?.id || "",
+    locationId: goat.location?.id || "",
     status: goat.status,
     notes: goat.notes || "",
   };
@@ -199,6 +201,7 @@ export default function GoatDetailPage({ params }: { params: Promise<{ id: strin
           <CardContent>
             <dl className="space-y-3">
               <DetailRow label="Gender" value={goat.gender} />
+              <DetailRow label="Location" value={goat.location?.name || "—"} />
               <DetailRow label="Date of Birth" value={formatDate(goat.dateOfBirth)} />
               <DetailRow label="Color/Markings" value={goat.colorMarkings || "—"} />
               <DetailRow label="Purchase Date" value={formatDate(goat.purchaseDate)} />

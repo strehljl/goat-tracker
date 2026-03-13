@@ -26,11 +26,12 @@ export async function GET(request: NextRequest) {
         include: {
           dam: { select: { name: true, tagId: true } },
           sire: { select: { name: true, tagId: true } },
+          location: { select: { name: true } },
         },
         orderBy: { name: "asc" },
       });
 
-      csv = "Name,Tag ID,Breed,Date of Birth,Gender,Color/Markings,Status,Purchase Date,Purchase Price,Dam,Sire,Notes\n";
+      csv = "Name,Tag ID,Breed,Date of Birth,Gender,Color/Markings,Location,Status,Purchase Date,Purchase Price,Dam,Sire,Notes\n";
       for (const g of goats) {
         csv += [
           quote(g.name),
@@ -39,6 +40,7 @@ export async function GET(request: NextRequest) {
           g.dateOfBirth ? g.dateOfBirth.toISOString().split("T")[0] : "",
           g.gender,
           quote(g.colorMarkings || ""),
+          quote(g.location?.name || ""),
           g.status,
           g.purchaseDate ? g.purchaseDate.toISOString().split("T")[0] : "",
           g.purchasePrice ? Number(g.purchasePrice).toFixed(2) : "",

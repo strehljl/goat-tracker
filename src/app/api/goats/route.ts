@@ -12,6 +12,7 @@ export async function GET(request: NextRequest) {
   const search = searchParams.get("search") || "";
   const status = searchParams.get("status") || "";
   const gender = searchParams.get("gender") || "";
+  const locationId = searchParams.get("locationId") || "";
   const bornThisYear = searchParams.get("bornThisYear") === "true";
 
   const where: Record<string, unknown> = { farmId };
@@ -32,6 +33,10 @@ export async function GET(request: NextRequest) {
     where.gender = gender;
   }
 
+  if (locationId) {
+    where.locationId = locationId;
+  }
+
   if (bornThisYear) {
     const start = new Date(new Date().getFullYear(), 0, 1);
     const end = new Date(new Date().getFullYear(), 11, 31, 23, 59, 59);
@@ -44,6 +49,7 @@ export async function GET(request: NextRequest) {
       include: {
         dam: { select: { id: true, name: true, tagId: true } },
         sire: { select: { id: true, name: true, tagId: true } },
+        location: { select: { id: true, name: true } },
       },
       orderBy: { name: "asc" },
     });
@@ -78,6 +84,7 @@ export async function POST(request: NextRequest) {
       purchasePrice,
       damId,
       sireId,
+      locationId: bodyLocationId,
       status,
       notes,
     } = body;
@@ -111,12 +118,14 @@ export async function POST(request: NextRequest) {
         purchasePrice: purchasePrice ? parseFloat(purchasePrice) : null,
         damId: damId || null,
         sireId: sireId || null,
+        locationId: bodyLocationId || null,
         status: status || "ACTIVE",
         notes: notes || null,
       },
       include: {
         dam: { select: { id: true, name: true, tagId: true } },
         sire: { select: { id: true, name: true, tagId: true } },
+        location: { select: { id: true, name: true } },
       },
     });
 

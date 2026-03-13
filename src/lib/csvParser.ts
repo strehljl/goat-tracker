@@ -13,6 +13,7 @@ export interface GoatImportRow {
   purchasePrice?: number;
   damTagId?: string;
   sireTagId?: string;
+  location?: string;
   status?: string;
   notes?: string;
 }
@@ -179,6 +180,7 @@ export function validateAndNormalize(
     const colorMarkings = (row["colorMarkings"] ?? "").trim() || undefined;
     const damTagId = (row["damTagId"] ?? "").trim() || undefined;
     const sireTagId = (row["sireTagId"] ?? "").trim() || undefined;
+    const location = (row["location"] ?? "").trim() || undefined;
     const notes = (row["notes"] ?? "").trim() || undefined;
 
     const data: GoatImportRow = {
@@ -192,6 +194,7 @@ export function validateAndNormalize(
       purchasePrice,
       damTagId,
       sireTagId,
+      location,
       status: status ?? "ACTIVE",
       notes,
     };

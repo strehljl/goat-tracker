@@ -14,6 +14,7 @@ interface GoatImportRow {
   purchasePrice?: number;
   damTagId?: string;
   sireTagId?: string;
+  location?: string;
   status?: string;
   notes?: string;
 }
@@ -68,6 +69,32 @@ export async function POST(request: NextRequest) {
   }
 
   try {
+    // Resolve location names -> locationIds (create new ones as needed)
+    const locationNameToId = new Map<string, string>();
+    const locationNames = new Set<string>();
+    for (const g of goats) {
+      if (g.location?.trim()) locationNames.add(g.location.trim());
+    }
+    if (locationNames.size > 0) {
+      const existingLocations = await prisma.farmLocation.findMany({
+        where: { farmId, name: { in: Array.from(locationNames) } },
+        select: { id: true, name: true },
+      });
+      for (const loc of existingLocations) {
+        locationNameToId.set(loc.name, loc.id);
+      }
+      // Create any new location names not already in DB
+      for (const name of locationNames) {
+        if (!locationNameToId.has(name)) {
+          const created = await prisma.farmLocation.create({
+            data: { farmId, name },
+            select: { id: true, name: true },
+          });
+          locationNameToId.set(created.name, created.id);
+        }
+      }
+    }
+
     // Collect all tagIds referenced as dam/sire
     const referencedTagIds = new Set<string>();
     for (const g of goats) {
@@ -93,6 +120,10 @@ export async function POST(request: NextRequest) {
 
     for (const g of goats) {
       try {
+        const locationId = g.location?.trim()
+          ? (locationNameToId.get(g.location.trim()) ?? null)
+          : null;
+
         const created = await prisma.goat.create({
           data: {
             farmId,
@@ -104,6 +135,7 @@ export async function POST(request: NextRequest) {
             colorMarkings: g.colorMarkings?.trim() || null,
             purchaseDate: g.purchaseDate ? new Date(g.purchaseDate) : null,
             purchasePrice: g.purchasePrice != null ? g.purchasePrice : null,
+            locationId,
             status: (g.status?.toUpperCase() as GoatStatus) ?? GoatStatus.ACTIVE,
             notes: g.notes?.trim() || null,
           },

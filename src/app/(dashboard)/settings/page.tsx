@@ -8,6 +8,7 @@ import { useFarm } from "@/components/providers/FarmProvider";
 
 type Member = { id: string; name: string | null; email: string | null; isOwner: boolean };
 type FarmDetail = { id: string; name: string; imageUrl: string | null; joinCode: string; isOwner: boolean; members: Member[] };
+type FarmLocation = { id: string; name: string };
 
 export default function SettingsPage() {
   const router = useRouter();
@@ -16,6 +17,10 @@ export default function SettingsPage() {
   const { farms, refreshFarms, switchFarm } = useFarm();
 
   const [details, setDetails] = useState<Record<string, FarmDetail>>({});
+  const [locations, setLocations] = useState<Record<string, FarmLocation[]>>({});
+  const [newLocationName, setNewLocationName] = useState<Record<string, string>>({});
+  const [locationError, setLocationError] = useState<Record<string, string>>({});
+  const [addingLocation, setAddingLocation] = useState<Record<string, boolean>>({});
   const [newFarmName, setNewFarmName] = useState("");
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState("");
@@ -28,10 +33,17 @@ export default function SettingsPage() {
   const loadDetails = useCallback(async () => {
     await Promise.all(
       farms.map(async (farm) => {
-        const res = await fetch("/api/farms/" + farm.id);
-        if (res.ok) {
-          const data = await res.json();
+        const [detailRes, locRes] = await Promise.all([
+          fetch("/api/farms/" + farm.id),
+          fetch("/api/farms/" + farm.id + "/locations"),
+        ]);
+        if (detailRes.ok) {
+          const data = await detailRes.json();
           setDetails((prev) => ({ ...prev, [farm.id]: data }));
+        }
+        if (locRes.ok) {
+          const locs = await locRes.json();
+          setLocations((prev) => ({ ...prev, [farm.id]: locs }));
         }
       })
     );
@@ -133,6 +145,36 @@ export default function SettingsPage() {
       }
     } finally {
       setUploadingImg((p) => ({ ...p, [farmId]: false }));
+    }
+  }
+
+  async function addLocation(farmId: string) {
+    const name = newLocationName[farmId]?.trim();
+    if (!name) return;
+    setAddingLocation((p) => ({ ...p, [farmId]: true }));
+    setLocationError((p) => ({ ...p, [farmId]: "" }));
+    try {
+      const res = await fetch("/api/farms/" + farmId + "/locations", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setLocationError((p) => ({ ...p, [farmId]: data.error || "Failed to add location" }));
+        return;
+      }
+      setLocations((p) => ({ ...p, [farmId]: [...(p[farmId] ?? []), data].sort((a, b) => a.name.localeCompare(b.name)) }));
+      setNewLocationName((p) => ({ ...p, [farmId]: "" }));
+    } finally {
+      setAddingLocation((p) => ({ ...p, [farmId]: false }));
+    }
+  }
+
+  async function deleteLocation(farmId: string, locationId: string) {
+    const res = await fetch("/api/farms/" + farmId + "/locations/" + locationId, { method: "DELETE" });
+    if (res.ok) {
+      setLocations((p) => ({ ...p, [farmId]: (p[farmId] ?? []).filter((l) => l.id !== locationId) }));
     }
   }
 
@@ -321,6 +363,55 @@ export default function SettingsPage() {
                 </ul>
               </div>
             )}
+
+            {/* Locations */}
+            <div>
+              <p className="text-sm font-medium text-text mb-2">Locations</p>
+              <div className="flex gap-2 mb-3">
+                <input
+                  type="text"
+                  value={newLocationName[farm.id] ?? ""}
+                  onChange={(e) => {
+                    setNewLocationName((p) => ({ ...p, [farm.id]: e.target.value }));
+                    if (locationError[farm.id]) setLocationError((p) => ({ ...p, [farm.id]: "" }));
+                  }}
+                  onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addLocation(farm.id); } }}
+                  placeholder="e.g. Pen 1, Casey's Barn"
+                  className="flex-1 min-w-0 rounded-lg border border-border bg-background px-3 py-1.5 text-sm text-text placeholder:text-text-light focus:outline-none focus:ring-2 focus:ring-primary/50"
+                />
+                <button
+                  onClick={() => addLocation(farm.id)}
+                  disabled={addingLocation[farm.id] || !newLocationName[farm.id]?.trim()}
+                  className="rounded-lg bg-primary px-3 py-1.5 text-sm font-medium text-white hover:bg-primary/90 disabled:opacity-50 transition-colors flex-shrink-0"
+                >
+                  {addingLocation[farm.id] ? "Adding…" : "Add"}
+                </button>
+              </div>
+              {locationError[farm.id] && (
+                <p className="mb-2 text-xs text-error">{locationError[farm.id]}</p>
+              )}
+              {(locations[farm.id] ?? []).length === 0 ? (
+                <p className="text-xs text-text-light">No locations yet. Add one above.</p>
+              ) : (
+                <div className="flex flex-wrap gap-2">
+                  {(locations[farm.id] ?? []).map((loc) => (
+                    <span
+                      key={loc.id}
+                      className="inline-flex items-center gap-1.5 rounded-full border border-border bg-background px-3 py-1 text-sm text-text"
+                    >
+                      {loc.name}
+                      <button
+                        onClick={() => deleteLocation(farm.id, loc.id)}
+                        className="text-text-light hover:text-error transition-colors leading-none"
+                        title="Remove location"
+                      >
+                        ×
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
 
             {/* Danger zone */}
             <div className="flex justify-end gap-3 pt-1 border-t border-border">
