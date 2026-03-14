@@ -50,6 +50,7 @@ export async function GET(request: NextRequest) {
         dam: { select: { id: true, name: true, tagId: true } },
         sire: { select: { id: true, name: true, tagId: true } },
         location: { select: { id: true, name: true } },
+        sale: { select: { saleDate: true } },
       },
       orderBy: { name: "asc" },
     });
@@ -126,6 +127,7 @@ export async function POST(request: NextRequest) {
         dam: { select: { id: true, name: true, tagId: true } },
         sire: { select: { id: true, name: true, tagId: true } },
         location: { select: { id: true, name: true } },
+        sale: { select: { saleDate: true } },
       },
     });
 
