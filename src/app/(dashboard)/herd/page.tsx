@@ -60,7 +60,7 @@ export default function HerdPage() {
   const [locationOptions, setLocationOptions] = useState<LocationOption[]>([]);
   const [bornThisYear, setBornThisYear] = useState(searchParams.get("bornThisYear") === "true");
   const [showAddModal, setShowAddModal] = useState(false);
-  const [sortField, setSortField] = useState("name");
+  const [sortField, setSortField] = useState("tagId");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
 
   const fetchGoats = useCallback(async () => {
@@ -142,7 +142,8 @@ export default function HerdPage() {
       } else {
         cmp = va.localeCompare(vb, undefined, { numeric: true, sensitivity: "base" });
       }
-      return sortDir === "asc" ? cmp : -cmp;
+      if (cmp !== 0) return sortDir === "asc" ? cmp : -cmp;
+      return a.name.localeCompare(b.name, undefined, { sensitivity: "base" });
     });
   }, [goats, sortField, sortDir]);
 
