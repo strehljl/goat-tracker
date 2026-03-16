@@ -228,7 +228,16 @@ function BreedingForm({ does, bucks, onSubmit, onCancel }: {
       <Select id="b-buck" label="Buck *" value={form.buckId} onChange={(e) => setForm({ ...form, buckId: e.target.value })}
         options={bucks.map((b) => ({ value: b.id, label: `${b.name} (#${b.tagId})` }))} placeholder="Select buck" />
       <div className="grid gap-4 sm:grid-cols-2">
-        <Input id="b-date" label="Breeding Date *" type="date" value={form.breedingDate} onChange={(e) => setForm({ ...form, breedingDate: e.target.value })} required />
+        <Input id="b-date" label="Breeding Date *" type="date" value={form.breedingDate} onChange={(e) => {
+          const breedingDate = e.target.value;
+          let expectedDueDate = form.expectedDueDate;
+          if (breedingDate) {
+            const due = new Date(breedingDate + "T00:00:00");
+            due.setMonth(due.getMonth() + 5);
+            expectedDueDate = due.toISOString().split("T")[0];
+          }
+          setForm({ ...form, breedingDate, expectedDueDate });
+        }} required />
         <Input id="b-due" label="Expected Due Date" type="date" value={form.expectedDueDate} onChange={(e) => setForm({ ...form, expectedDueDate: e.target.value })} />
       </div>
       <TextArea id="b-notes" label="Notes" value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} rows={2} />
