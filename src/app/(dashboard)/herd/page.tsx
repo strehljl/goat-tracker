@@ -136,7 +136,12 @@ export default function HerdPage() {
       if (va == null && vb == null) return 0;
       if (va == null) return sortDir === "asc" ? 1 : -1;
       if (vb == null) return sortDir === "asc" ? -1 : 1;
-      const cmp = va.localeCompare(vb);
+      let cmp: number;
+      if (sortField === "tagId" && /^\d+$/.test(va) && /^\d+$/.test(vb)) {
+        cmp = Number(va) - Number(vb);
+      } else {
+        cmp = va.localeCompare(vb, undefined, { numeric: true, sensitivity: "base" });
+      }
       return sortDir === "asc" ? cmp : -cmp;
     });
   }, [goats, sortField, sortDir]);
