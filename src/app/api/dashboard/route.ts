@@ -28,11 +28,12 @@ export async function GET() {
       prisma.breedingEvent.count({
         where: { farmId, status: { in: ["PENDING", "CONFIRMED"] } },
       }),
-      prisma.kid.count({
+      prisma.goat.count({
         where: {
-          kiddingRecord: {
-            breedingEvent: { farmId },
-            kiddingDate: { gte: yearStart },
+          farmId,
+          dateOfBirth: {
+            gte: yearStart,
+            lte: new Date(now.getFullYear(), 11, 31, 23, 59, 59),
           },
         },
       }),
