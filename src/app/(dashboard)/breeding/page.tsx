@@ -44,6 +44,7 @@ export default function BreedingPage() {
   const [goats, setGoats] = useState<GoatOption[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAddModal, setShowAddModal] = useState(false);
+  const [showMassModal, setShowMassModal] = useState(false);
   const [kiddingEvent, setKiddingEvent] = useState<BreedingEvent | null>(null);
   const [statusFilter, setStatusFilter] = useState("");
 
@@ -113,7 +114,10 @@ export default function BreedingPage() {
           <h1 className="text-2xl font-bold text-text">Breeding</h1>
           <p className="mt-1 text-sm text-text-light">Track breeding events and kidding records</p>
         </div>
-        <Button onClick={() => setShowAddModal(true)}>+ Add Breeding</Button>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={() => setShowMassModal(true)}>+ Mass Breeding</Button>
+          <Button onClick={() => setShowAddModal(true)}>+ Add Breeding</Button>
+        </div>
       </div>
 
       <div className="mt-4">
@@ -191,6 +195,10 @@ export default function BreedingPage() {
         ))}
       </div>
 
+      <Modal open={showMassModal} onClose={() => setShowMassModal(false)} title="Mass Breeding Event" className="max-w-lg">
+        <MassBreedingForm does={does} bucks={bucks} onSuccess={() => { setShowMassModal(false); fetchEvents(); }} onCancel={() => setShowMassModal(false)} />
+      </Modal>
+
       <Modal open={showAddModal} onClose={() => setShowAddModal(false)} title="Add Breeding Event" className="max-w-lg">
         <BreedingForm does={does} bucks={bucks} onSubmit={handleAdd} onCancel={() => setShowAddModal(false)} />
       </Modal>
@@ -244,6 +252,107 @@ function BreedingForm({ does, bucks, onSubmit, onCancel }: {
       <div className="flex justify-end gap-3">
         <Button type="button" variant="outline" onClick={onCancel}>Cancel</Button>
         <Button type="submit" loading={loading}>Save</Button>
+      </div>
+    </form>
+  );
+}
+
+// === Doe Checkbox List ===
+
+function DoeCheckboxList({ does, selected, onChange }: {
+  does: GoatOption[]; selected: string[]; onChange: (ids: string[]) => void;
+}) {
+  const allSelected = selected.length === does.length && does.length > 0;
+  const toggleAll = () => onChange(allSelected ? [] : does.map((d) => d.id));
+  const toggle = (id: string) =>
+    onChange(selected.includes(id) ? selected.filter((s) => s !== id) : [...selected, id]);
+
+  return (
+    <div>
+      <div className="mb-1 flex items-center justify-between">
+        <label className="text-sm font-medium text-text">Does * <span className="text-text-light">({selected.length} selected)</span></label>
+        <button type="button" onClick={toggleAll} className="text-xs font-medium text-primary hover:underline">
+          {allSelected ? "Deselect All" : "Select All"}
+        </button>
+      </div>
+      <div className="max-h-48 overflow-y-auto rounded-lg border border-border bg-surface p-2 space-y-1">
+        {does.length === 0 ? (
+          <p className="px-2 py-1 text-sm text-text-light">No active does found.</p>
+        ) : does.map((d) => (
+          <label key={d.id} className="flex cursor-pointer items-center gap-2 rounded px-2 py-1 hover:bg-background">
+            <input type="checkbox" checked={selected.includes(d.id)} onChange={() => toggle(d.id)} className="accent-primary" />
+            <span className="text-sm text-text">{d.name}</span>
+            <span className="text-xs text-text-light">#{d.tagId}</span>
+          </label>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// === Mass Breeding Form ===
+
+function MassBreedingForm({ does, bucks, onSuccess, onCancel }: {
+  does: GoatOption[]; bucks: GoatOption[]; onSuccess: () => void; onCancel: () => void;
+}) {
+  const [selectedDoeIds, setSelectedDoeIds] = useState<string[]>([]);
+  const [form, setForm] = useState({ buckId: "", breedingDate: "", expectedDueDate: "", notes: "" });
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  const handleDateChange = (breedingDate: string) => {
+    let expectedDueDate = form.expectedDueDate;
+    if (breedingDate) {
+      const due = new Date(breedingDate + "T00:00:00");
+      due.setMonth(due.getMonth() + 5);
+      expectedDueDate = due.toISOString().split("T")[0];
+    }
+    setForm({ ...form, breedingDate, expectedDueDate });
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (selectedDoeIds.length === 0) { setError("Select at least one doe."); return; }
+    if (!form.buckId) { setError("A buck is required."); return; }
+    if (!form.breedingDate) { setError("Breeding date is required."); return; }
+    setLoading(true);
+    setError("");
+    try {
+      const results = await Promise.allSettled(
+        selectedDoeIds.map((doeId) =>
+          fetch("/api/breeding", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ ...form, doeId }),
+          })
+        )
+      );
+      const failed = results.filter((r) => r.status === "rejected").length;
+      if (failed > 0) throw new Error(`${failed} event(s) failed to save.`);
+      onSuccess();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to save");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4">
+      {error && <div className="rounded-lg bg-error/10 px-4 py-3 text-sm text-error">{error}</div>}
+      <Select id="mb-buck" label="Buck *" value={form.buckId} onChange={(e) => setForm({ ...form, buckId: e.target.value })}
+        options={bucks.map((b) => ({ value: b.id, label: `${b.name} (#${b.tagId})` }))} placeholder="Select buck" />
+      <DoeCheckboxList does={does} selected={selectedDoeIds} onChange={setSelectedDoeIds} />
+      <div className="grid gap-4 sm:grid-cols-2">
+        <Input id="mb-date" label="Breeding Date *" type="date" value={form.breedingDate} onChange={(e) => handleDateChange(e.target.value)} required />
+        <Input id="mb-due" label="Expected Due Date" type="date" value={form.expectedDueDate} onChange={(e) => setForm({ ...form, expectedDueDate: e.target.value })} />
+      </div>
+      <TextArea id="mb-notes" label="Notes" value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} rows={2} />
+      <div className="flex justify-end gap-3">
+        <Button type="button" variant="outline" onClick={onCancel}>Cancel</Button>
+        <Button type="submit" loading={loading}>
+          Create {selectedDoeIds.length > 0 ? `(${selectedDoeIds.length} events)` : ""}
+        </Button>
       </div>
     </form>
   );
