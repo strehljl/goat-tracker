@@ -10,8 +10,9 @@ import Select from "@/components/ui/Select";
 import TextArea from "@/components/ui/TextArea";
 import { SkeletonTable } from "@/components/ui/Skeleton";
 import Skeleton from "@/components/ui/Skeleton";
+import { useFarm } from "@/components/providers/FarmProvider";
 
-interface GoatOption { id: string; name: string; tagId: string; gender: string; status: string }
+interface AnimalOption { id: string; name: string; tagId: string; gender: string; status: string }
 
 interface Summary {
   totalExpenses: number;
@@ -48,21 +49,25 @@ const categoryColors: Record<string, "info" | "error" | "warning" | "success" | 
 };
 
 export default function FinancialsPage() {
+  const { activeConfig, activeHerd } = useFarm();
   const [activeTab, setActiveTab] = useState<Tab>("expenses");
   const [expenses, setExpenses] = useState<Record<string, unknown>[]>([]);
   const [sales, setSales] = useState<Record<string, unknown>[]>([]);
   const [summary, setSummary] = useState<Summary | null>(null);
-  const [goats, setGoats] = useState<GoatOption[]>([]);
+  const [animals, setAnimals] = useState<AnimalOption[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAddModal, setShowAddModal] = useState(false);
   const [categoryFilter, setCategoryFilter] = useState("");
 
-  const activeGoats = useMemo(() => goats.filter((g) => g.status === "ACTIVE"), [goats]);
+  const activeAnimals = useMemo(() => animals.filter((a) => a.status === "ACTIVE"), [animals]);
+
+  const animalLabel = activeConfig?.singular ?? "Animal";
 
   useEffect(() => {
-    fetch("/api/goats").then((r) => r.json()).then(setGoats).catch(console.error);
+    const herdParam = activeHerd ? `?herdId=${activeHerd.id}` : "";
+    fetch(`/api/animals${herdParam}`).then((r) => r.json()).then(setAnimals).catch(console.error);
     fetch("/api/financials/summary").then((r) => r.json()).then(setSummary).catch(console.error);
-  }, []);
+  }, [activeHerd]);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -160,14 +165,14 @@ export default function FinancialsPage() {
           expenses.length === 0 ? (
             <div className="rounded-xl border border-border bg-surface px-4 py-8 text-center text-text-light">No expenses found.</div>
           ) : expenses.map((e) => {
-            const goat = e.goat as { name: string; tagId: string } | null;
+            const animal = e.animal as { name: string; tagId: string } | null;
             return (
               <div key={e.id as string} className="flex items-center justify-between rounded-xl border border-border bg-surface px-4 py-3">
                 <div className="flex-1">
                   <div className="flex items-center gap-2">
                     <Badge variant={categoryColors[e.category as string] || "default"}>{categoryLabels[e.category as string] || (e.category as string)}</Badge>
                     <span className="font-medium text-text">{formatCurrency(Number(e.amount))}</span>
-                    {goat && <span className="text-xs text-text-light">{goat.name} #{goat.tagId}</span>}
+                    {animal && <span className="text-xs text-text-light">{animal.name} #{animal.tagId}</span>}
                   </div>
                   <div className="mt-1 flex gap-4 text-xs text-text-light">
                     <span>{formatDate(e.date as string)}</span>
@@ -183,12 +188,12 @@ export default function FinancialsPage() {
           sales.length === 0 ? (
             <div className="rounded-xl border border-border bg-surface px-4 py-8 text-center text-text-light">No sales found.</div>
           ) : sales.map((s) => {
-            const goat = s.goat as { name: string; tagId: string };
+            const animal = s.animal as { name: string; tagId: string };
             return (
               <div key={s.id as string} className="flex items-center justify-between rounded-xl border border-border bg-surface px-4 py-3">
                 <div>
                   <div className="flex items-center gap-2">
-                    <span className="font-medium text-text">{goat.name} #{goat.tagId}</span>
+                    <span className="font-medium text-text">{animal.name} #{animal.tagId}</span>
                     <span className="font-medium text-success">{formatCurrency(Number(s.salePrice))}</span>
                   </div>
                   <div className="mt-1 flex gap-4 text-xs text-text-light">
@@ -206,9 +211,9 @@ export default function FinancialsPage() {
         title={activeTab === "expenses" ? "Add Expense" : "Record Sale"}
         className="max-w-lg max-h-[90vh] overflow-y-auto">
         {activeTab === "expenses" ? (
-          <ExpenseForm goats={goats} onSuccess={() => { setShowAddModal(false); refreshAll(); }} onCancel={() => setShowAddModal(false)} />
+          <ExpenseForm animals={animals} animalLabel={animalLabel} onSuccess={() => { setShowAddModal(false); refreshAll(); }} onCancel={() => setShowAddModal(false)} />
         ) : (
-          <SaleForm goats={activeGoats} onSuccess={() => { setShowAddModal(false); refreshAll(); }} onCancel={() => setShowAddModal(false)} />
+          <SaleForm animals={activeAnimals} animalLabel={animalLabel} onSuccess={() => { setShowAddModal(false); refreshAll(); }} onCancel={() => setShowAddModal(false)} />
         )}
       </Modal>
     </div>
@@ -224,10 +229,10 @@ function SummaryCard({ label, value, color }: { label: string; value: string; co
   );
 }
 
-interface FormProps { goats: GoatOption[]; onSuccess: () => void; onCancel: () => void }
+interface FormProps { animals: AnimalOption[]; animalLabel: string; onSuccess: () => void; onCancel: () => void }
 
-function ExpenseForm({ goats, onSuccess, onCancel }: FormProps) {
-  const [form, setForm] = useState({ goatId: "", category: "FEED", amount: "", date: "", description: "", vendorName: "" });
+function ExpenseForm({ animals, animalLabel, onSuccess, onCancel }: FormProps) {
+  const [form, setForm] = useState({ animalId: "", category: "FEED", amount: "", date: "", description: "", vendorName: "" });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -251,8 +256,8 @@ function ExpenseForm({ goats, onSuccess, onCancel }: FormProps) {
         <Input id="exp-amount" label="Amount ($) *" type="number" step="0.01" min="0" value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} required />
         <Input id="exp-date" label="Date *" type="date" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} required />
       </div>
-      <Select id="exp-goat" label="Goat (optional)" value={form.goatId} onChange={(e) => setForm({ ...form, goatId: e.target.value })}
-        options={goats.map((g) => ({ value: g.id, label: `${g.name} (#${g.tagId})` }))} placeholder="Herd-wide expense" />
+      <Select id="exp-animal" label={`${animalLabel} (optional)`} value={form.animalId} onChange={(e) => setForm({ ...form, animalId: e.target.value })}
+        options={animals.map((a) => ({ value: a.id, label: `${a.name} (#${a.tagId})` }))} placeholder="Herd-wide expense" />
       <Input id="exp-vendor" label="Vendor" value={form.vendorName} onChange={(e) => setForm({ ...form, vendorName: e.target.value })} placeholder="e.g. Tractor Supply" />
       <TextArea id="exp-desc" label="Description" value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} rows={2} />
       <div className="flex justify-end gap-3">
@@ -263,8 +268,8 @@ function ExpenseForm({ goats, onSuccess, onCancel }: FormProps) {
   );
 }
 
-function SaleForm({ goats, onSuccess, onCancel }: FormProps) {
-  const [form, setForm] = useState({ goatId: "", saleDate: "", salePrice: "", buyerName: "", buyerContact: "", notes: "" });
+function SaleForm({ animals, animalLabel, onSuccess, onCancel }: FormProps) {
+  const [form, setForm] = useState({ animalId: "", saleDate: "", salePrice: "", buyerName: "", buyerContact: "", notes: "" });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -282,8 +287,8 @@ function SaleForm({ goats, onSuccess, onCancel }: FormProps) {
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       {error && <div className="rounded-lg bg-error/10 px-4 py-3 text-sm text-error">{error}</div>}
-      <Select id="sale-goat" label="Goat *" value={form.goatId} onChange={(e) => setForm({ ...form, goatId: e.target.value })}
-        options={goats.map((g) => ({ value: g.id, label: `${g.name} (#${g.tagId})` }))} placeholder="Select goat" />
+      <Select id="sale-animal" label={`${animalLabel} *`} value={form.animalId} onChange={(e) => setForm({ ...form, animalId: e.target.value })}
+        options={animals.map((a) => ({ value: a.id, label: `${a.name} (#${a.tagId})` }))} placeholder={`Select ${animalLabel.toLowerCase()}`} />
       <div className="grid gap-4 sm:grid-cols-2">
         <Input id="sale-price" label="Sale Price ($) *" type="number" step="0.01" min="0" value={form.salePrice} onChange={(e) => setForm({ ...form, salePrice: e.target.value })} required />
         <Input id="sale-date" label="Sale Date *" type="date" value={form.saleDate} onChange={(e) => setForm({ ...form, saleDate: e.target.value })} required />

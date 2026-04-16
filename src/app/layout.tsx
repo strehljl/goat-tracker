@@ -16,8 +16,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Goat Tracker - Herd Management",
-  description: "Herd inventory management for goat farmers",
+  title: "Herd Tracker - Herd Management",
+  description: "Herd inventory management for livestock farmers",
 };
 
 export default function RootLayout({

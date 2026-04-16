@@ -5,8 +5,9 @@ import Button from "@/components/ui/Button";
 import Input from "@/components/ui/Input";
 import Select from "@/components/ui/Select";
 import TextArea from "@/components/ui/TextArea";
+import { AnimalConfig } from "@/lib/animalConfig";
 
-interface GoatOption {
+interface AnimalOption {
   id: string;
   name: string;
   tagId: string;
@@ -18,7 +19,7 @@ interface LocationOption {
   name: string;
 }
 
-export interface GoatFormData {
+export interface AnimalFormData {
   name: string;
   tagId: string;
   breed: string;
@@ -35,18 +36,14 @@ export interface GoatFormData {
   notes: string;
 }
 
-interface GoatFormProps {
-  initialData?: Partial<GoatFormData>;
-  onSubmit: (data: GoatFormData) => Promise<void>;
+interface AnimalFormProps {
+  config: AnimalConfig;
+  herdId?: string;
+  initialData?: Partial<AnimalFormData>;
+  onSubmit: (data: AnimalFormData) => Promise<void>;
   onCancel: () => void;
   submitLabel?: string;
 }
-
-const genderOptions = [
-  { value: "DOE", label: "Doe" },
-  { value: "BUCK", label: "Buck" },
-  { value: "WETHER", label: "Wether" },
-];
 
 const statusOptions = [
   { value: "ACTIVE", label: "Active" },
@@ -54,7 +51,7 @@ const statusOptions = [
   { value: "DECEASED", label: "Deceased" },
 ];
 
-const emptyForm: GoatFormData = {
+const emptyForm: AnimalFormData = {
   name: "",
   tagId: "",
   breed: "",
@@ -71,35 +68,44 @@ const emptyForm: GoatFormData = {
   notes: "",
 };
 
-export default function GoatForm({
+export default function AnimalForm({
+  config,
+  herdId,
   initialData,
   onSubmit,
   onCancel,
   submitLabel = "Save",
-}: GoatFormProps) {
-  const [form, setForm] = useState<GoatFormData>({ ...emptyForm, ...initialData });
+}: AnimalFormProps) {
+  const [form, setForm] = useState<AnimalFormData>({ ...emptyForm, ...initialData });
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
-  const [does, setDoes] = useState<GoatOption[]>([]);
-  const [bucks, setBucks] = useState<GoatOption[]>([]);
+  const [females, setFemales] = useState<AnimalOption[]>([]);
+  const [males, setMales] = useState<AnimalOption[]>([]);
   const [locationOptions, setLocationOptions] = useState<LocationOption[]>([]);
 
+  const genderOptions = [
+    { value: "FEMALE", label: config.genderLabels.FEMALE },
+    { value: "MALE", label: config.genderLabels.MALE },
+    { value: "NEUTERED_MALE", label: config.genderLabels.NEUTERED_MALE },
+  ];
+
   useEffect(() => {
+    const herdParam = herdId ? `&herdId=${herdId}` : "";
     Promise.all([
-      fetch("/api/goats?gender=DOE").then((r) => r.json()),
-      fetch("/api/goats?gender=BUCK").then((r) => r.json()),
-      fetch("/api/farms/current/locations").then((r) => r.ok ? r.json() : []),
+      fetch(`/api/animals?gender=FEMALE${herdParam}`).then((r) => r.json()),
+      fetch(`/api/animals?gender=MALE${herdParam}`).then((r) => r.json()),
+      fetch("/api/farms/current/locations").then((r) => (r.ok ? r.json() : [])),
     ])
-      .then(([does, bucks, locs]: [GoatOption[], GoatOption[], LocationOption[]]) => {
-        setDoes(does);
-        setBucks(bucks);
+      .then(([f, m, locs]: [AnimalOption[], AnimalOption[], LocationOption[]]) => {
+        setFemales(f);
+        setMales(m);
         setLocationOptions(Array.isArray(locs) ? locs : []);
       })
       .catch(console.error);
-  }, []);
+  }, [herdId]);
 
-  const set = (field: keyof GoatFormData, value: string) => {
+  const set = (field: keyof AnimalFormData, value: string) => {
     setForm((prev) => ({ ...prev, [field]: value }));
     if (errors[field]) {
       setErrors((prev) => {
@@ -127,7 +133,7 @@ export default function GoatForm({
     try {
       const formData = new FormData();
       formData.append("file", file);
-      const res = await fetch("/api/goats/upload", {
+      const res = await fetch("/api/animals/upload", {
         method: "POST",
         body: formData,
       });
@@ -152,7 +158,7 @@ export default function GoatForm({
     try {
       await onSubmit(form);
     } catch {
-      setErrors({ form: "Failed to save goat" });
+      setErrors({ form: `Failed to save ${config.singular}` });
     } finally {
       setLoading(false);
     }
@@ -173,7 +179,7 @@ export default function GoatForm({
           value={form.name}
           onChange={(e) => set("name", e.target.value)}
           error={errors.name}
-          placeholder="e.g. Daisy"
+          placeholder={`e.g. Daisy`}
         />
         <Input
           id="tagId"
@@ -181,7 +187,7 @@ export default function GoatForm({
           value={form.tagId}
           onChange={(e) => set("tagId", e.target.value)}
           error={errors.tagId}
-          placeholder="e.g. GT-001"
+          placeholder={config.tagIdPlaceholder}
         />
       </div>
 
@@ -200,7 +206,7 @@ export default function GoatForm({
           label="Breed"
           value={form.breed}
           onChange={(e) => set("breed", e.target.value)}
-          placeholder="e.g. Nubian"
+          placeholder={config.breedPlaceholder}
         />
       </div>
 
@@ -244,19 +250,19 @@ export default function GoatForm({
       <div className="grid gap-4 sm:grid-cols-2">
         <Select
           id="damId"
-          label="Dam (Mother)"
+          label={`${config.breedingTerms.femaleRole} (Mother)`}
           value={form.damId}
           onChange={(e) => set("damId", e.target.value)}
-          options={does.map((d) => ({ value: d.id, label: `${d.name} (${d.tagId})` }))}
-          placeholder="Select dam"
+          options={females.map((f) => ({ value: f.id, label: `${f.name} (${f.tagId})` }))}
+          placeholder={`Select ${config.breedingTerms.femaleRole.toLowerCase()}`}
         />
         <Select
           id="sireId"
-          label="Sire (Father)"
+          label={`${config.breedingTerms.maleRole} (Father)`}
           value={form.sireId}
           onChange={(e) => set("sireId", e.target.value)}
-          options={bucks.map((b) => ({ value: b.id, label: `${b.name} (${b.tagId})` }))}
-          placeholder="Select sire"
+          options={males.map((m) => ({ value: m.id, label: `${m.name} (${m.tagId})` }))}
+          placeholder={`Select ${config.breedingTerms.maleRole.toLowerCase()}`}
         />
       </div>
 
@@ -285,7 +291,7 @@ export default function GoatForm({
           {form.photoUrl && (
             <img
               src={form.photoUrl}
-              alt="Goat photo"
+              alt={`${config.singularCapitalized} photo`}
               className="h-20 w-20 rounded-lg object-cover border border-border"
             />
           )}

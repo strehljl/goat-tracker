@@ -5,19 +5,27 @@ import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { useFarm } from "@/components/providers/FarmProvider";
+import { ANIMAL_CONFIGS, AnimalType } from "@/lib/animalConfig";
 
 type Member = { id: string; name: string | null; email: string | null; isOwner: boolean };
 type FarmDetail = { id: string; name: string; imageUrl: string | null; joinCode: string; isOwner: boolean; members: Member[] };
 type FarmLocation = { id: string; name: string };
+type Herd = { id: string; name: string; animalType: AnimalType; description: string | null };
+
+const ANIMAL_TYPE_OPTIONS: { value: AnimalType; label: string }[] = Object.values(ANIMAL_CONFIGS).map((c) => ({
+  value: c.animalType,
+  label: `${c.emoji} ${c.pluralCapitalized}`,
+}));
 
 export default function SettingsPage() {
   const router = useRouter();
   const { data: session } = useSession();
   const currentUserId = session?.user?.id;
-  const { farms, refreshFarms, switchFarm } = useFarm();
+  const { farms, refreshFarms, switchFarm, refreshHerds } = useFarm();
 
   const [details, setDetails] = useState<Record<string, FarmDetail>>({});
   const [locations, setLocations] = useState<Record<string, FarmLocation[]>>({});
+  const [herds, setHerds] = useState<Record<string, Herd[]>>({});
   const [newLocationName, setNewLocationName] = useState<Record<string, string>>({});
   const [locationError, setLocationError] = useState<Record<string, string>>({});
   const [addingLocation, setAddingLocation] = useState<Record<string, boolean>>({});
@@ -30,12 +38,22 @@ export default function SettingsPage() {
   const [uploadingImg, setUploadingImg] = useState<Record<string, boolean>>({});
   const imgInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
 
+  // Herd state
+  const [newHerdName, setNewHerdName] = useState<Record<string, string>>({});
+  const [newHerdType, setNewHerdType] = useState<Record<string, AnimalType>>({});
+  const [herdError, setHerdError] = useState<Record<string, string>>({});
+  const [addingHerd, setAddingHerd] = useState<Record<string, boolean>>({});
+  const [editingHerd, setEditingHerd] = useState<Record<string, { name: string; animalType: AnimalType } | undefined>>({});
+  const [savingHerd, setSavingHerd] = useState<Record<string, boolean>>({});
+  const [deletingHerd, setDeletingHerd] = useState<Record<string, boolean>>({});
+
   const loadDetails = useCallback(async () => {
     await Promise.all(
       farms.map(async (farm) => {
-        const [detailRes, locRes] = await Promise.all([
+        const [detailRes, locRes, herdRes] = await Promise.all([
           fetch("/api/farms/" + farm.id),
           fetch("/api/farms/" + farm.id + "/locations"),
+          fetch("/api/herds?farmId=" + farm.id),
         ]);
         if (detailRes.ok) {
           const data = await detailRes.json();
@@ -44,6 +62,10 @@ export default function SettingsPage() {
         if (locRes.ok) {
           const locs = await locRes.json();
           setLocations((prev) => ({ ...prev, [farm.id]: locs }));
+        }
+        if (herdRes.ok) {
+          const herdList = await herdRes.json();
+          setHerds((prev) => ({ ...prev, [farm.id]: herdList }));
         }
       })
     );
@@ -178,6 +200,71 @@ export default function SettingsPage() {
     }
   }
 
+  // Herd management
+  async function addHerd(farmId: string) {
+    const name = newHerdName[farmId]?.trim();
+    const animalType = newHerdType[farmId] ?? "GOAT";
+    if (!name) return;
+    setAddingHerd((p) => ({ ...p, [farmId]: true }));
+    setHerdError((p) => ({ ...p, [farmId]: "" }));
+    try {
+      const res = await fetch("/api/herds", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ farmId, name, animalType }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setHerdError((p) => ({ ...p, [farmId]: data.error || "Failed to add herd" }));
+        return;
+      }
+      setHerds((p) => ({ ...p, [farmId]: [...(p[farmId] ?? []), data] }));
+      setNewHerdName((p) => ({ ...p, [farmId]: "" }));
+      setNewHerdType((p) => ({ ...p, [farmId]: "GOAT" }));
+      await refreshHerds();
+    } finally {
+      setAddingHerd((p) => ({ ...p, [farmId]: false }));
+    }
+  }
+
+  async function saveHerd(herdId: string, farmId: string) {
+    const edit = editingHerd[herdId];
+    if (!edit?.name.trim()) return;
+    setSavingHerd((p) => ({ ...p, [herdId]: true }));
+    try {
+      const res = await fetch("/api/herds/" + herdId, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: edit.name.trim(), animalType: edit.animalType }),
+      });
+      if (res.ok) {
+        const updated = await res.json();
+        setHerds((p) => ({
+          ...p,
+          [farmId]: (p[farmId] ?? []).map((h) => (h.id === herdId ? updated : h)),
+        }));
+        setEditingHerd((p) => { const n = { ...p }; delete n[herdId]; return n; });
+        await refreshHerds();
+      }
+    } finally {
+      setSavingHerd((p) => ({ ...p, [herdId]: false }));
+    }
+  }
+
+  async function deleteHerd(herdId: string, farmId: string) {
+    if (!confirm("Delete this herd? This will unlink all animals from this herd.")) return;
+    setDeletingHerd((p) => ({ ...p, [herdId]: true }));
+    try {
+      const res = await fetch("/api/herds/" + herdId, { method: "DELETE" });
+      if (res.ok) {
+        setHerds((p) => ({ ...p, [farmId]: (p[farmId] ?? []).filter((h) => h.id !== herdId) }));
+        await refreshHerds();
+      }
+    } finally {
+      setDeletingHerd((p) => ({ ...p, [herdId]: false }));
+    }
+  }
+
   function copyLink(joinCode: string, farmId: string) {
     navigator.clipboard.writeText(window.location.origin + "/join/" + joinCode);
     setCopied((p) => ({ ...p, [farmId]: true }));
@@ -188,7 +275,7 @@ export default function SettingsPage() {
     <div className="max-w-2xl space-y-8">
       <div>
         <h1 className="text-2xl font-bold text-text">Settings</h1>
-        <p className="mt-1 text-sm text-text-light">Manage your farms.</p>
+        <p className="mt-1 text-sm text-text-light">Manage your farms and herds.</p>
       </div>
 
       {/* Create farm */}
@@ -363,6 +450,127 @@ export default function SettingsPage() {
                 </ul>
               </div>
             )}
+
+            {/* Herds */}
+            <div>
+              <p className="text-sm font-medium text-text mb-2">Herds</p>
+              {/* Add herd form (owners only) */}
+              {farm.isOwner && (
+                <div className="mb-3 space-y-2">
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={newHerdName[farm.id] ?? ""}
+                      onChange={(e) => {
+                        setNewHerdName((p) => ({ ...p, [farm.id]: e.target.value }));
+                        if (herdError[farm.id]) setHerdError((p) => ({ ...p, [farm.id]: "" }));
+                      }}
+                      onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addHerd(farm.id); } }}
+                      placeholder="Herd name"
+                      className="flex-1 min-w-0 rounded-lg border border-border bg-background px-3 py-1.5 text-sm text-text placeholder:text-text-light focus:outline-none focus:ring-2 focus:ring-primary/50"
+                    />
+                    <select
+                      value={newHerdType[farm.id] ?? "GOAT"}
+                      onChange={(e) => setNewHerdType((p) => ({ ...p, [farm.id]: e.target.value as AnimalType }))}
+                      className="rounded-lg border border-border bg-background px-2 py-1.5 text-sm text-text focus:outline-none focus:ring-2 focus:ring-primary/50"
+                    >
+                      {ANIMAL_TYPE_OPTIONS.map((opt) => (
+                        <option key={opt.value} value={opt.value}>{opt.label}</option>
+                      ))}
+                    </select>
+                    <button
+                      onClick={() => addHerd(farm.id)}
+                      disabled={addingHerd[farm.id] || !newHerdName[farm.id]?.trim()}
+                      className="rounded-lg bg-primary px-3 py-1.5 text-sm font-medium text-white hover:bg-primary/90 disabled:opacity-50 transition-colors flex-shrink-0"
+                    >
+                      {addingHerd[farm.id] ? "Adding…" : "Add"}
+                    </button>
+                  </div>
+                  {herdError[farm.id] && (
+                    <p className="text-xs text-error">{herdError[farm.id]}</p>
+                  )}
+                </div>
+              )}
+
+              {(herds[farm.id] ?? []).length === 0 ? (
+                <p className="text-xs text-text-light">No herds yet.{farm.isOwner ? " Add one above." : ""}</p>
+              ) : (
+                <ul className="divide-y divide-border rounded-lg border border-border overflow-hidden">
+                  {(herds[farm.id] ?? []).map((herd) => {
+                    const isEditingThisHerd = herd.id in editingHerd;
+                    const config = ANIMAL_CONFIGS[herd.animalType];
+                    return (
+                      <li key={herd.id} className="bg-background px-3 py-2.5">
+                        {isEditingThisHerd ? (
+                          <div className="flex gap-2 flex-wrap">
+                            <input
+                              autoFocus
+                              type="text"
+                              value={editingHerd[herd.id]?.name ?? ""}
+                              onChange={(e) => setEditingHerd((p) => ({
+                                ...p, [herd.id]: { ...p[herd.id]!, name: e.target.value }
+                              }))}
+                              className="flex-1 min-w-0 rounded-lg border border-border bg-surface px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
+                            />
+                            <select
+                              value={editingHerd[herd.id]?.animalType ?? herd.animalType}
+                              onChange={(e) => setEditingHerd((p) => ({
+                                ...p, [herd.id]: { ...p[herd.id]!, animalType: e.target.value as AnimalType }
+                              }))}
+                              className="rounded-lg border border-border bg-surface px-2 py-1.5 text-sm text-text focus:outline-none focus:ring-2 focus:ring-primary/50"
+                            >
+                              {ANIMAL_TYPE_OPTIONS.map((opt) => (
+                                <option key={opt.value} value={opt.value}>{opt.label}</option>
+                              ))}
+                            </select>
+                            <button
+                              onClick={() => saveHerd(herd.id, farm.id)}
+                              disabled={savingHerd[herd.id]}
+                              className="rounded-lg bg-primary px-3 py-1.5 text-sm font-medium text-white hover:bg-primary/90 disabled:opacity-50 transition-colors"
+                            >
+                              {savingHerd[herd.id] ? "Saving…" : "Save"}
+                            </button>
+                            <button
+                              onClick={() => setEditingHerd((p) => { const n = { ...p }; delete n[herd.id]; return n; })}
+                              className="rounded-lg border border-border px-3 py-1.5 text-sm text-text-light hover:bg-surface transition-colors"
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="flex items-center justify-between gap-2">
+                            <div className="flex items-center gap-2">
+                              <span className="text-base leading-none">{config.emoji}</span>
+                              <span className="text-sm font-medium text-text">{herd.name}</span>
+                              <span className="text-xs text-text-light">{config.pluralCapitalized}</span>
+                            </div>
+                            {farm.isOwner && (
+                              <div className="flex items-center gap-2 flex-shrink-0">
+                                <button
+                                  onClick={() => setEditingHerd((p) => ({
+                                    ...p, [herd.id]: { name: herd.name, animalType: herd.animalType }
+                                  }))}
+                                  className="text-xs text-primary hover:underline"
+                                >
+                                  Edit
+                                </button>
+                                <button
+                                  onClick={() => deleteHerd(herd.id, farm.id)}
+                                  disabled={deletingHerd[herd.id]}
+                                  className="text-xs text-error hover:underline disabled:opacity-50"
+                                >
+                                  {deletingHerd[herd.id] ? "Deleting…" : "Delete"}
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+            </div>
 
             {/* Locations */}
             <div>

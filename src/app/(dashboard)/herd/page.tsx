@@ -8,11 +8,12 @@ import Badge from "@/components/ui/Badge";
 import Select from "@/components/ui/Select";
 import Modal from "@/components/ui/Modal";
 import SearchInput from "@/components/forms/SearchInput";
-import GoatForm, { type GoatFormData } from "@/components/forms/GoatForm";
+import AnimalForm, { type AnimalFormData } from "@/components/forms/AnimalForm";
 import Table from "@/components/ui/Table";
 import { SkeletonTable } from "@/components/ui/Skeleton";
+import { useFarm } from "@/components/providers/FarmProvider";
 
-interface Goat {
+interface Animal {
   id: string;
   name: string;
   tagId: string;
@@ -51,7 +52,8 @@ function formatDate(dateStr: string | null) {
 export default function HerdPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const [goats, setGoats] = useState<Goat[]>([]);
+  const { activeConfig, activeHerd } = useFarm();
+  const [animals, setAnimals] = useState<Animal[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState(searchParams.get("status") ?? "");
@@ -63,24 +65,25 @@ export default function HerdPage() {
   const [sortField, setSortField] = useState("tagId");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
 
-  const fetchGoats = useCallback(async () => {
+  const fetchAnimals = useCallback(async () => {
     const params = new URLSearchParams();
     if (search) params.set("search", search);
     if (statusFilter) params.set("status", statusFilter);
     if (genderFilter) params.set("gender", genderFilter);
     if (locationFilter) params.set("locationId", locationFilter);
     if (bornThisYear) params.set("bornThisYear", "true");
+    if (activeHerd?.id) params.set("herdId", activeHerd.id);
 
     try {
-      const res = await fetch(`/api/goats?${params}`);
+      const res = await fetch(`/api/animals?${params}`);
       const data = await res.json();
-      setGoats(data);
+      setAnimals(data);
     } catch (error) {
-      console.error("Failed to fetch goats:", error);
+      console.error("Failed to fetch animals:", error);
     } finally {
       setLoading(false);
     }
-  }, [search, statusFilter, genderFilter, locationFilter, bornThisYear]);
+  }, [search, statusFilter, genderFilter, locationFilter, bornThisYear, activeHerd?.id]);
 
   useEffect(() => {
     fetch("/api/farms/current/locations")
@@ -91,15 +94,15 @@ export default function HerdPage() {
 
   useEffect(() => {
     setLoading(true);
-    const timer = setTimeout(fetchGoats, 300);
+    const timer = setTimeout(fetchAnimals, 300);
     return () => clearTimeout(timer);
-  }, [fetchGoats]);
+  }, [fetchAnimals]);
 
-  const handleCreate = async (data: GoatFormData) => {
-    const res = await fetch("/api/goats", {
+  const handleCreate = async (data: AnimalFormData) => {
+    const res = await fetch("/api/animals", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(data),
+      body: JSON.stringify({ ...data, herdId: activeHerd?.id ?? null }),
     });
 
     if (!res.ok) {
@@ -108,7 +111,7 @@ export default function HerdPage() {
     }
 
     setShowAddModal(false);
-    fetchGoats();
+    fetchAnimals();
   };
 
   const handleSort = (field: string) => {
@@ -120,8 +123,8 @@ export default function HerdPage() {
     }
   };
 
-  const sortedGoats = useMemo(() => {
-    return [...goats].sort((a, b) => {
+  const sortedAnimals = useMemo(() => {
+    return [...animals].sort((a, b) => {
       let va: string | null = null;
       let vb: string | null = null;
       if (sortField === "name") { va = a.name; vb = b.name; }
@@ -145,29 +148,32 @@ export default function HerdPage() {
       if (cmp !== 0) return sortDir === "asc" ? cmp : -cmp;
       return a.name.localeCompare(b.name, undefined, { sensitivity: "base" });
     });
-  }, [goats, sortField, sortDir]);
+  }, [animals, sortField, sortDir]);
+
+  const genderLabel = (gender: string) =>
+    activeConfig?.genderLabels[gender as "FEMALE" | "MALE" | "NEUTERED_MALE"] ?? gender;
 
   const columns = [
     {
       key: "name",
       header: "Name",
       sortable: true,
-      render: (goat: Goat) => (
+      render: (animal: Animal) => (
         <div className="flex items-center gap-3">
-          {goat.photoUrl ? (
+          {animal.photoUrl ? (
             <Image
-              src={goat.photoUrl}
-              alt={goat.name}
+              src={animal.photoUrl}
+              alt={animal.name}
               width={32}
               height={32}
               className="h-8 w-8 rounded-full object-cover"
             />
           ) : (
             <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/10 text-xs font-medium text-primary">
-              {goat.name[0]}
+              {animal.name[0]}
             </div>
           )}
-          <span className="font-medium text-text">{goat.name}</span>
+          <span className="font-medium text-text">{animal.name}</span>
         </div>
       ),
     },
@@ -175,28 +181,28 @@ export default function HerdPage() {
       key: "tagId",
       header: "Tag ID",
       sortable: true,
-      render: (goat: Goat) => <span className="text-text-light">#{goat.tagId}</span>,
+      render: (animal: Animal) => <span className="text-text-light">#{animal.tagId}</span>,
     },
     {
       key: "location",
       header: "Location",
       sortable: true,
-      render: (goat: Goat) => goat.location?.name ?? "—",
+      render: (animal: Animal) => animal.location?.name ?? "—",
       className: "hidden sm:table-cell",
     },
     {
       key: "breed",
       header: "Breed",
       sortable: true,
-      render: (goat: Goat) => goat.breed || "—",
+      render: (animal: Animal) => animal.breed || "—",
     },
     {
       key: "gender",
       header: "Gender",
       sortable: true,
-      render: (goat: Goat) => (
-        <Badge variant={goat.gender === "DOE" ? "success" : "info"}>
-          {goat.gender}
+      render: (animal: Animal) => (
+        <Badge variant={animal.gender === "FEMALE" ? "success" : "info"}>
+          {genderLabel(animal.gender)}
         </Badge>
       ),
     },
@@ -204,16 +210,16 @@ export default function HerdPage() {
       key: "dateOfBirth",
       header: "DOB",
       sortable: true,
-      render: (goat: Goat) => formatDate(goat.dateOfBirth),
+      render: (animal: Animal) => formatDate(animal.dateOfBirth),
       className: "hidden sm:table-cell",
     },
     {
       key: "status",
       header: "Status",
       sortable: true,
-      render: (goat: Goat) => (
-        <Badge variant={statusColors[goat.status] || "default"}>
-          {goat.status}
+      render: (animal: Animal) => (
+        <Badge variant={statusColors[animal.status] || "default"}>
+          {animal.status}
         </Badge>
       ),
     },
@@ -223,11 +229,14 @@ export default function HerdPage() {
             key: "saleDate",
             header: "Sold Date",
             sortable: true,
-            render: (goat: Goat) => formatDate(goat.sale?.saleDate ?? null),
+            render: (animal: Animal) => formatDate(animal.sale?.saleDate ?? null),
           },
         ]
       : []),
   ];
+
+  const singularLabel = activeConfig?.singularCapitalized ?? "Animal";
+  const pluralLabel = activeConfig?.pluralCapitalized ?? "Animals";
 
   return (
     <div>
@@ -235,10 +244,10 @@ export default function HerdPage() {
         <div>
           <h1 className="text-2xl font-bold text-text">Herd</h1>
           <p className="mt-1 text-sm text-text-light">
-            {goats.length} goat{goats.length !== 1 ? "s" : ""} registered
+            {animals.length} {animals.length !== 1 ? activeConfig?.plural ?? "animals" : activeConfig?.singular ?? "animal"} registered
           </p>
         </div>
-        <Button onClick={() => setShowAddModal(true)}>+ Add Goat</Button>
+        <Button onClick={() => setShowAddModal(true)}>+ Add {singularLabel}</Button>
       </div>
 
       {/* Filters */}
@@ -265,11 +274,18 @@ export default function HerdPage() {
           id="genderFilter"
           value={genderFilter}
           onChange={(e) => setGenderFilter(e.target.value)}
-          options={[
-            { value: "DOE", label: "Does" },
-            { value: "BUCK", label: "Bucks" },
-            { value: "WETHER", label: "Wethers" },
-          ]}
+          options={activeConfig
+            ? [
+                { value: "FEMALE", label: activeConfig.genderLabels.FEMALE + "s" },
+                { value: "MALE", label: activeConfig.genderLabels.MALE + "s" },
+                { value: "NEUTERED_MALE", label: activeConfig.genderLabels.NEUTERED_MALE + "s" },
+              ]
+            : [
+                { value: "FEMALE", label: "Females" },
+                { value: "MALE", label: "Males" },
+                { value: "NEUTERED_MALE", label: "Neutered" },
+              ]
+          }
           placeholder="All genders"
           className="w-40"
         />
@@ -300,10 +316,10 @@ export default function HerdPage() {
         ) : (
           <Table
             columns={columns}
-            data={sortedGoats}
+            data={sortedAnimals}
             keyField="id"
-            onRowClick={(goat) => router.push(`/herd/${goat.id}`)}
-            emptyMessage="No goats found. Add your first goat to get started!"
+            onRowClick={(animal) => router.push(`/herd/${animal.id}`)}
+            emptyMessage={`No ${activeConfig?.plural ?? "animals"} found. Add your first ${activeConfig?.singular ?? "animal"} to get started!`}
             sortField={sortField}
             sortDir={sortDir}
             onSort={handleSort}
@@ -315,14 +331,18 @@ export default function HerdPage() {
       <Modal
         open={showAddModal}
         onClose={() => setShowAddModal(false)}
-        title="Add New Goat"
+        title={`Add New ${singularLabel}`}
         className="max-w-2xl max-h-[90vh] overflow-y-auto"
       >
-        <GoatForm
-          onSubmit={handleCreate}
-          onCancel={() => setShowAddModal(false)}
-          submitLabel="Add Goat"
-        />
+        {activeConfig && (
+          <AnimalForm
+            config={activeConfig}
+            herdId={activeHerd?.id}
+            onSubmit={handleCreate}
+            onCancel={() => setShowAddModal(false)}
+            submitLabel={`Add ${singularLabel}`}
+          />
+        )}
       </Modal>
     </div>
   );

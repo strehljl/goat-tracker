@@ -64,7 +64,8 @@ model Farm {
   createdAt      DateTime         @default(now())
   updatedAt      DateTime         @updatedAt
   members        FarmMembership[]
-  goats          Goat[]
+  animals        Animal[]
+  herds          Herd[]
   locations      FarmLocation[]
   breedingEvents BreedingEvent[]
   expenses       Expense[]
@@ -76,13 +77,29 @@ model Farm {
   healthNotes    HealthNote[]
 }
 
+// A named herd within a farm — each herd tracks one animal type
+model Herd {
+  id          String     @id @default(cuid())
+  farmId      String
+  name        String
+  animalType  AnimalType @default(GOAT)
+  description String?
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+  farm        Farm       @relation(fields: [farmId], references: [id], onDelete: Cascade)
+  animals     Animal[]
+
+  @@unique([farmId, name])
+  @@index([farmId])
+}
+
 model FarmLocation {
   id        String   @id @default(cuid())
   farmId    String
   name      String
   createdAt DateTime @default(now())
   farm      Farm     @relation(fields: [farmId], references: [id], onDelete: Cascade)
-  goats     Goat[]
+  animals   Animal[]
 
   @@unique([farmId, name])
   @@index([farmId])
@@ -102,44 +119,47 @@ model FarmMembership {
   @@index([farmId])
 }
 
-model Goat {
-  id             String          @id @default(cuid())
-  farmId         String?
-  name           String
-  tagId          String
-  breed          String?
-  dateOfBirth    DateTime?
-  gender         Gender
-  colorMarkings  String?
-  photoUrl       String?
-  purchaseDate   DateTime?
-  purchasePrice  Decimal?        @db.Decimal(10, 2)
-  damId          String?
-  sireId         String?
-  locationId     String?
-  status         GoatStatus      @default(ACTIVE)
-  notes          String?
-  createdAt      DateTime        @default(now())
-  updatedAt      DateTime        @updatedAt
-  farm           Farm?           @relation(fields: [farmId], references: [id])
-  location       FarmLocation?   @relation(fields: [locationId], references: [id], onDelete: SetNull)
-  breedingAsBuck BreedingEvent[] @relation("BuckBreeding")
-  breedingAsDoe  BreedingEvent[] @relation("DoeBreeding")
-  dewormings     Deworming[]
-  expenses       Expense[]
-  dam            Goat?           @relation("DamOffspring", fields: [damId], references: [id])
-  damOffspring   Goat[]          @relation("DamOffspring")
-  sire           Goat?           @relation("SireOffspring", fields: [sireId], references: [id])
-  sireOffspring  Goat[]          @relation("SireOffspring")
-  healthNotes    HealthNote[]
-  kids           Kid?
-  medications    Medication[]
-  sale           Sale?
-  vaccinations   Vaccination[]
-  vetVisits      VetVisit[]
+model Animal {
+  id                  String          @id @default(cuid())
+  farmId              String?
+  herdId              String?
+  name                String
+  tagId               String
+  breed               String?
+  dateOfBirth         DateTime?
+  gender              AnimalGender
+  colorMarkings       String?
+  photoUrl            String?
+  purchaseDate        DateTime?
+  purchasePrice       Decimal?        @db.Decimal(10, 2)
+  damId               String?
+  sireId              String?
+  locationId          String?
+  status              AnimalStatus    @default(ACTIVE)
+  notes               String?
+  createdAt           DateTime        @default(now())
+  updatedAt           DateTime        @updatedAt
+  farm                Farm?           @relation(fields: [farmId], references: [id])
+  herd                Herd?           @relation(fields: [herdId], references: [id], onDelete: SetNull)
+  location            FarmLocation?   @relation(fields: [locationId], references: [id], onDelete: SetNull)
+  breedingAsMale      BreedingEvent[] @relation("MaleBreeding")
+  breedingAsFemale    BreedingEvent[] @relation("FemaleBreeding")
+  dewormings          Deworming[]
+  expenses            Expense[]
+  dam                 Animal?         @relation("DamOffspring", fields: [damId], references: [id])
+  damOffspring        Animal[]        @relation("DamOffspring")
+  sire                Animal?         @relation("SireOffspring", fields: [sireId], references: [id])
+  sireOffspring       Animal[]        @relation("SireOffspring")
+  healthNotes         HealthNote[]
+  offspring           Offspring?
+  medications         Medication[]
+  sale                Sale?
+  vaccinations        Vaccination[]
+  vetVisits           VetVisit[]
 
   @@unique([farmId, tagId])
   @@index([farmId])
+  @@index([herdId])
   @@index([status])
   @@index([gender])
   @@index([damId])
@@ -151,7 +171,7 @@ model Goat {
 model Vaccination {
   id          String    @id @default(cuid())
   farmId      String?
-  goatId      String
+  animalId    String
   name        String
   dateGiven   DateTime
   nextDueDate DateTime?
@@ -159,10 +179,10 @@ model Vaccination {
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
   farm        Farm?     @relation(fields: [farmId], references: [id])
-  goat        Goat      @relation(fields: [goatId], references: [id], onDelete: Cascade)
+  animal      Animal    @relation(fields: [animalId], references: [id], onDelete: Cascade)
 
   @@index([farmId])
-  @@index([goatId])
+  @@index([animalId])
   @@index([nextDueDate])
   @@index([farmId, nextDueDate])
 }
@@ -170,7 +190,7 @@ model Vaccination {
 model Medication {
   id        String    @id @default(cuid())
   farmId    String?
-  goatId    String
+  animalId  String
   name      String
   dosage    String?
   startDate DateTime
@@ -179,16 +199,16 @@ model Medication {
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
   farm      Farm?     @relation(fields: [farmId], references: [id])
-  goat      Goat      @relation(fields: [goatId], references: [id], onDelete: Cascade)
+  animal    Animal    @relation(fields: [animalId], references: [id], onDelete: Cascade)
 
   @@index([farmId])
-  @@index([goatId])
+  @@index([animalId])
 }
 
 model VetVisit {
   id        String   @id @default(cuid())
   farmId    String?
-  goatId    String
+  animalId  String
   date      DateTime
   reason    String
   diagnosis String?
@@ -199,16 +219,16 @@ model VetVisit {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   farm      Farm?    @relation(fields: [farmId], references: [id])
-  goat      Goat     @relation(fields: [goatId], references: [id], onDelete: Cascade)
+  animal    Animal   @relation(fields: [animalId], references: [id], onDelete: Cascade)
 
   @@index([farmId])
-  @@index([goatId])
+  @@index([animalId])
 }
 
 model Deworming {
   id          String    @id @default(cuid())
   farmId      String?
-  goatId      String
+  animalId    String
   productName String
   dateGiven   DateTime
   nextDueDate DateTime?
@@ -216,10 +236,10 @@ model Deworming {
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
   farm        Farm?     @relation(fields: [farmId], references: [id])
-  goat        Goat      @relation(fields: [goatId], references: [id], onDelete: Cascade)
+  animal      Animal    @relation(fields: [animalId], references: [id], onDelete: Cascade)
 
   @@index([farmId])
-  @@index([goatId])
+  @@index([animalId])
   @@index([nextDueDate])
   @@index([farmId, nextDueDate])
 }
@@ -227,23 +247,23 @@ model Deworming {
 model HealthNote {
   id        String   @id @default(cuid())
   farmId    String?
-  goatId    String
+  animalId  String
   date      DateTime
   note      String
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   farm      Farm?    @relation(fields: [farmId], references: [id])
-  goat      Goat     @relation(fields: [goatId], references: [id], onDelete: Cascade)
+  animal    Animal   @relation(fields: [animalId], references: [id], onDelete: Cascade)
 
   @@index([farmId])
-  @@index([goatId])
+  @@index([animalId])
 }
 
 model BreedingEvent {
-  id              String         @id @default(cuid())
+  id              String        @id @default(cuid())
   farmId          String?
-  doeId           String
-  buckId          String
+  parentFemaleId  String
+  parentMaleId    String
   breedingDate    DateTime
   expectedDueDate DateTime?
   status          BreedingStatus @default(PENDING)
@@ -251,46 +271,46 @@ model BreedingEvent {
   createdAt       DateTime       @default(now())
   updatedAt       DateTime       @updatedAt
   farm            Farm?          @relation(fields: [farmId], references: [id])
-  buck            Goat           @relation("BuckBreeding", fields: [buckId], references: [id])
-  doe             Goat           @relation("DoeBreeding", fields: [doeId], references: [id])
-  kiddingRecord   KiddingRecord?
+  parentMale      Animal         @relation("MaleBreeding", fields: [parentMaleId], references: [id])
+  parentFemale    Animal         @relation("FemaleBreeding", fields: [parentFemaleId], references: [id])
+  birthRecord     BirthRecord?
 
   @@index([farmId])
   @@index([status])
-  @@index([doeId])
-  @@index([buckId])
+  @@index([parentFemaleId])
+  @@index([parentMaleId])
   @@index([expectedDueDate])
 }
 
-model KiddingRecord {
+model BirthRecord {
   id              String        @id @default(cuid())
   breedingEventId String        @unique
-  kiddingDate     DateTime
+  birthDate       DateTime
   complications   String?
   notes           String?
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt
-  kids            Kid[]
+  offspring       Offspring[]
   breedingEvent   BreedingEvent @relation(fields: [breedingEventId], references: [id], onDelete: Cascade)
 }
 
-model Kid {
-  id              String        @id @default(cuid())
-  kiddingRecordId String
-  goatId          String?       @unique
-  gender          Gender
-  birthWeight     Decimal?      @db.Decimal(5, 2)
-  status          KidStatus     @default(ALIVE)
-  createdAt       DateTime      @default(now())
-  updatedAt       DateTime      @updatedAt
-  goat            Goat?         @relation(fields: [goatId], references: [id])
-  kiddingRecord   KiddingRecord @relation(fields: [kiddingRecordId], references: [id], onDelete: Cascade)
+model Offspring {
+  id            String       @id @default(cuid())
+  birthRecordId String
+  animalId      String?      @unique
+  gender        AnimalGender
+  birthWeight   Decimal?     @db.Decimal(5, 2)
+  status        OffspringStatus @default(ALIVE)
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+  animal        Animal?      @relation(fields: [animalId], references: [id])
+  birthRecord   BirthRecord  @relation(fields: [birthRecordId], references: [id], onDelete: Cascade)
 }
 
 model Expense {
   id          String          @id @default(cuid())
   farmId      String?
-  goatId      String?
+  animalId    String?
   category    ExpenseCategory
   amount      Decimal         @db.Decimal(10, 2)
   date        DateTime
@@ -299,10 +319,10 @@ model Expense {
   createdAt   DateTime        @default(now())
   updatedAt   DateTime        @updatedAt
   farm        Farm?           @relation(fields: [farmId], references: [id])
-  goat        Goat?           @relation(fields: [goatId], references: [id])
+  animal      Animal?         @relation(fields: [animalId], references: [id])
 
   @@index([farmId])
-  @@index([goatId])
+  @@index([animalId])
   @@index([date])
   @@index([category])
   @@index([farmId, category])
@@ -311,7 +331,7 @@ model Expense {
 model Sale {
   id           String   @id @default(cuid())
   farmId       String?
-  goatId       String   @unique
+  animalId     String   @unique
   saleDate     DateTime
   salePrice    Decimal  @db.Decimal(10, 2)
   buyerName    String?
@@ -320,19 +340,28 @@ model Sale {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
   farm         Farm?    @relation(fields: [farmId], references: [id])
-  goat         Goat     @relation(fields: [goatId], references: [id])
+  animal       Animal   @relation(fields: [animalId], references: [id])
 
   @@index([farmId])
   @@index([saleDate])
 }
 
-enum Gender {
-  DOE
-  BUCK
-  WETHER
+enum AnimalType {
+  GOAT
+  SHEEP
+  CATTLE
+  PIG
+  ALPACA
+  OTHER
 }
 
-enum GoatStatus {
+enum AnimalGender {
+  FEMALE
+  MALE
+  NEUTERED_MALE
+}
+
+enum AnimalStatus {
   ACTIVE
   SOLD
   DECEASED
@@ -345,7 +374,7 @@ enum BreedingStatus {
   DELIVERED
 }
 
-enum KidStatus {
+enum OffspringStatus {
   ALIVE
   STILLBORN
 }

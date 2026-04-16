@@ -7,12 +7,12 @@ export async function GET(request: NextRequest) {
   if (auth instanceof NextResponse) return auth;
   const { farmId } = auth;
 
-  const goatId = new URL(request.url).searchParams.get("goatId");
+  const animalId = new URL(request.url).searchParams.get("animalId");
 
   try {
     const medications = await prisma.medication.findMany({
-      where: goatId ? { farmId, goatId } : { farmId },
-      include: { goat: { select: { id: true, name: true, tagId: true } } },
+      where: animalId ? { farmId, animalId } : { farmId },
+      include: { animal: { select: { id: true, name: true, tagId: true } } },
       orderBy: { startDate: "desc" },
     });
     return NextResponse.json(medications);
@@ -28,28 +28,28 @@ export async function POST(request: NextRequest) {
   const { farmId } = auth;
 
   try {
-    const { goatId, name, dosage, startDate, endDate, notes } = await request.json();
+    const { animalId, name, dosage, startDate, endDate, notes } = await request.json();
 
-    if (!goatId || !name || !startDate) {
-      return NextResponse.json({ error: "Goat, name, and start date are required" }, { status: 400 });
+    if (!animalId || !name || !startDate) {
+      return NextResponse.json({ error: "Animal, name, and start date are required" }, { status: 400 });
     }
 
-    const goat = await prisma.goat.findFirst({ where: { id: goatId, farmId } });
-    if (!goat) {
-      return NextResponse.json({ error: "Goat not found" }, { status: 404 });
+    const animal = await prisma.animal.findFirst({ where: { id: animalId, farmId } });
+    if (!animal) {
+      return NextResponse.json({ error: "Animal not found" }, { status: 404 });
     }
 
     const medication = await prisma.medication.create({
       data: {
         farmId,
-        goatId,
+        animalId,
         name,
         dosage: dosage || null,
         startDate: new Date(startDate),
         endDate: endDate ? new Date(endDate) : null,
         notes: notes || null,
       },
-      include: { goat: { select: { id: true, name: true, tagId: true } } },
+      include: { animal: { select: { id: true, name: true, tagId: true } } },
     });
     return NextResponse.json(medication, { status: 201 });
   } catch (error) {

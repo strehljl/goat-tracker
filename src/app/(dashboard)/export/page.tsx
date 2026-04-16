@@ -4,30 +4,34 @@ import { useState } from "react";
 import Button from "@/components/ui/Button";
 import Card, { CardHeader, CardTitle, CardContent } from "@/components/ui/Card";
 import ImportSection from "@/components/import/ImportSection";
-
-const exportTypes = [
-  {
-    key: "inventory",
-    title: "Herd Inventory",
-    description: "Export all goats with details including breed, DOB, gender, status, lineage, and purchase info.",
-    filename: "goat-inventory.csv",
-  },
-  {
-    key: "health",
-    title: "Health Records",
-    description: "Export all vaccinations, medications, vet visits, and deworming records.",
-    filename: "health-records.csv",
-  },
-  {
-    key: "financials",
-    title: "Financial Records",
-    description: "Export all expenses and sales with amounts, categories, and associated goats.",
-    filename: "financial-records.csv",
-  },
-];
+import { useFarm } from "@/components/providers/FarmProvider";
 
 export default function ExportPage() {
+  const { activeConfig, activeHerd } = useFarm();
   const [downloading, setDownloading] = useState<string | null>(null);
+
+  const animalLabel = activeConfig?.pluralCapitalized ?? "Animals";
+
+  const exportTypes = [
+    {
+      key: "inventory",
+      title: "Herd Inventory",
+      description: `Export all ${activeConfig?.plural ?? "animals"} with details including breed, DOB, gender, status, lineage, and purchase info.`,
+      filename: `${activeConfig?.exportPrefix ?? "animal"}-inventory.csv`,
+    },
+    {
+      key: "health",
+      title: "Health Records",
+      description: "Export all vaccinations, medications, vet visits, and deworming records.",
+      filename: "health-records.csv",
+    },
+    {
+      key: "financials",
+      title: "Financial Records",
+      description: `Export all expenses and sales with amounts, categories, and associated ${activeConfig?.plural ?? "animals"}.`,
+      filename: "financial-records.csv",
+    },
+  ];
 
   const handleExport = async (type: string) => {
     setDownloading(type);
@@ -55,9 +59,13 @@ export default function ExportPage() {
   return (
     <div>
       <h1 className="text-2xl font-bold text-text">Import / Export</h1>
-      <p className="mt-1 text-sm text-text-light">Import goats from CSV or download your data</p>
+      <p className="mt-1 text-sm text-text-light">
+        Import {animalLabel.toLowerCase()} from CSV or download your data
+      </p>
 
-      <ImportSection />
+      {activeConfig && (
+        <ImportSection config={activeConfig} herdId={activeHerd?.id} />
+      )}
 
       <hr className="my-8 border-border" />
 

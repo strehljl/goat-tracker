@@ -21,17 +21,20 @@ function FarmAvatar({ name, imageUrl, size = 16 }: { name: string; imageUrl: str
 
 export default function MobileHeader() {
   const router = useRouter();
-  const { activeFarm, farms, switchFarm } = useFarm();
+  const { activeFarm, farms, switchFarm, herds, activeHerd, switchHerd, activeConfig } = useFarm();
   const [open, setOpen] = useState(false);
 
-  async function handleSwitch(farmId: string) {
-    if (farmId === activeFarm?.id) {
-      setOpen(false);
-      return;
-    }
+  async function handleFarmSwitch(farmId: string) {
+    if (farmId === activeFarm?.id) return;
     setOpen(false);
     await switchFarm(farmId);
     router.refresh();
+  }
+
+  function handleHerdSwitch(herdId: string) {
+    if (herdId === activeHerd?.id) return;
+    setOpen(false);
+    switchHerd(herdId);
   }
 
   return (
@@ -40,17 +43,26 @@ export default function MobileHeader() {
         <svg className="h-6 w-6 text-primary" fill="currentColor" viewBox="0 0 24 24">
           <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z" />
         </svg>
-        <span className="text-base font-bold text-primary">Goat Tracker</span>
+        <span className="text-base font-bold text-primary">Herd Tracker</span>
       </div>
 
-      {/* Farm switcher */}
+      {/* Farm + Herd switcher */}
       <div className="relative flex-1 mx-3">
         <button
           onClick={() => setOpen((o) => !o)}
           className="flex w-full items-center justify-between gap-1 rounded-lg px-2 py-1.5 text-xs font-medium bg-background hover:bg-border transition-colors"
         >
-          {activeFarm && <FarmAvatar name={activeFarm.name} imageUrl={activeFarm.imageUrl} size={16} />}
-          <span className="truncate">{activeFarm?.name ?? "No farm"}</span>
+          <div className="flex items-center gap-1 min-w-0">
+            {activeFarm && <FarmAvatar name={activeFarm.name} imageUrl={activeFarm.imageUrl} size={16} />}
+            <span className="truncate">{activeFarm?.name ?? "No farm"}</span>
+            {activeHerd && (
+              <>
+                <span className="text-text-light mx-0.5">/</span>
+                <span className="text-base leading-none">{activeConfig?.emoji ?? "🐾"}</span>
+                <span className="truncate text-text-light">{activeHerd.name}</span>
+              </>
+            )}
+          </div>
           <svg
             className={"h-3.5 w-3.5 flex-shrink-0 transition-transform" + (open ? " rotate-180" : "")}
             fill="none"
@@ -66,10 +78,12 @@ export default function MobileHeader() {
           <>
             <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
             <div className="absolute left-0 right-0 top-full mt-1 z-20 rounded-lg border border-border bg-surface shadow-lg py-1">
+              {/* Farm section */}
+              <p className="px-3 pt-1 pb-0.5 text-xs font-semibold uppercase tracking-wider text-text-light">Farm</p>
               {farms.map((farm) => (
                 <button
                   key={farm.id}
-                  onClick={() => handleSwitch(farm.id)}
+                  onClick={() => handleFarmSwitch(farm.id)}
                   className={
                     "flex w-full items-center gap-2 px-3 py-2 text-sm hover:bg-background transition-colors " +
                     (farm.id === activeFarm?.id ? "text-primary font-medium" : "text-text")
@@ -88,13 +102,45 @@ export default function MobileHeader() {
                   <span className="truncate">{farm.name}</span>
                 </button>
               ))}
+
+              {/* Herd section */}
+              {herds.length > 0 && (
+                <>
+                  <div className="border-t border-border mt-1 pt-1">
+                    <p className="px-3 pt-1 pb-0.5 text-xs font-semibold uppercase tracking-wider text-text-light">Herd</p>
+                    {herds.map((herd) => (
+                      <button
+                        key={herd.id}
+                        onClick={() => handleHerdSwitch(herd.id)}
+                        className={
+                          "flex w-full items-center gap-2 px-3 py-2 text-sm hover:bg-background transition-colors " +
+                          (herd.id === activeHerd?.id ? "text-primary font-medium" : "text-text")
+                        }
+                      >
+                        <svg
+                          className={"h-4 w-4 flex-shrink-0 " + (herd.id === activeHerd?.id ? "text-primary" : "text-transparent")}
+                          fill="none"
+                          viewBox="0 0 24 24"
+                          stroke="currentColor"
+                          strokeWidth={2}
+                        >
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                        </svg>
+                        <span className="text-base leading-none">{activeConfig?.emoji ?? "🐾"}</span>
+                        <span className="truncate">{herd.name}</span>
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
+
               <div className="border-t border-border mt-1 pt-1">
                 <Link
                   href="/settings"
                   onClick={() => setOpen(false)}
                   className="flex w-full items-center gap-2 px-3 py-2 text-sm text-text-light hover:bg-background transition-colors"
                 >
-                  Manage farms
+                  Manage farms & herds
                 </Link>
               </div>
             </div>

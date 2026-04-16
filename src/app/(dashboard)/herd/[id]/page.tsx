@@ -8,10 +8,11 @@ import Button from "@/components/ui/Button";
 import Badge from "@/components/ui/Badge";
 import Card, { CardHeader, CardTitle, CardContent } from "@/components/ui/Card";
 import Modal from "@/components/ui/Modal";
-import GoatForm, { type GoatFormData } from "@/components/forms/GoatForm";
+import AnimalForm, { type AnimalFormData } from "@/components/forms/AnimalForm";
 import Skeleton from "@/components/ui/Skeleton";
+import { useFarm } from "@/components/providers/FarmProvider";
 
-interface GoatDetail {
+interface AnimalDetail {
   id: string;
   name: string;
   tagId: string;
@@ -25,6 +26,7 @@ interface GoatDetail {
   status: string;
   notes: string | null;
   createdAt: string;
+  herdId: string | null;
   location: { id: string; name: string } | null;
   dam: { id: string; name: string; tagId: string; photoUrl: string | null } | null;
   sire: { id: string; name: string; tagId: string; photoUrl: string | null } | null;
@@ -60,34 +62,35 @@ function formatCurrency(val: string | null) {
   return `$${parseFloat(val).toFixed(2)}`;
 }
 
-export default function GoatDetailPage({ params }: { params: Promise<{ id: string }> }) {
+export default function AnimalDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const router = useRouter();
-  const [goat, setGoat] = useState<GoatDetail | null>(null);
+  const { activeConfig, activeHerd } = useFarm();
+  const [animal, setAnimal] = useState<AnimalDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [showEditModal, setShowEditModal] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
-  const fetchGoat = async () => {
+  const fetchAnimal = async () => {
     try {
-      const res = await fetch(`/api/goats/${id}`);
+      const res = await fetch(`/api/animals/${id}`);
       if (!res.ok) throw new Error("Not found");
       const data = await res.json();
-      setGoat(data);
+      setAnimal(data);
     } catch {
-      setGoat(null);
+      setAnimal(null);
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchGoat();
+    fetchAnimal();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
-  const handleUpdate = async (data: GoatFormData) => {
-    const res = await fetch(`/api/goats/${id}`, {
+  const handleUpdate = async (data: AnimalFormData) => {
+    const res = await fetch(`/api/animals/${id}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(data),
@@ -97,14 +100,15 @@ export default function GoatDetailPage({ params }: { params: Promise<{ id: strin
       throw new Error(err.error);
     }
     setShowEditModal(false);
-    fetchGoat();
+    fetchAnimal();
   };
 
   const handleDelete = async () => {
-    if (!confirm("Are you sure you want to delete this goat? This cannot be undone.")) return;
+    const label = activeConfig?.singular ?? "animal";
+    if (!confirm(`Are you sure you want to delete this ${label}? This cannot be undone.`)) return;
     setDeleting(true);
     try {
-      await fetch(`/api/goats/${id}`, { method: "DELETE" });
+      await fetch(`/api/animals/${id}`, { method: "DELETE" });
       router.push("/herd");
     } catch {
       setDeleting(false);
@@ -120,11 +124,15 @@ export default function GoatDetailPage({ params }: { params: Promise<{ id: strin
     );
   }
 
-  if (!goat) {
+  if (!animal) {
     return (
       <div>
-        <h1 className="text-2xl font-bold text-text">Goat Not Found</h1>
-        <p className="mt-2 text-text-light">This goat doesn&apos;t exist or has been deleted.</p>
+        <h1 className="text-2xl font-bold text-text">
+          {activeConfig?.singularCapitalized ?? "Animal"} Not Found
+        </h1>
+        <p className="mt-2 text-text-light">
+          This {activeConfig?.singular ?? "animal"} doesn&apos;t exist or has been deleted.
+        </p>
         <Link href="/herd" className="mt-4 inline-block text-primary hover:underline">
           Back to Herd
         </Link>
@@ -132,53 +140,56 @@ export default function GoatDetailPage({ params }: { params: Promise<{ id: strin
     );
   }
 
-  const offspringMap = new Map([...goat.damOffspring, ...goat.sireOffspring].map((k) => [k.id, k]));
+  const offspringMap = new Map([...animal.damOffspring, ...animal.sireOffspring].map((k) => [k.id, k]));
   const offspring = Array.from(offspringMap.values());
 
   const editInitialData = {
-    name: goat.name,
-    tagId: goat.tagId,
-    breed: goat.breed || "",
-    dateOfBirth: goat.dateOfBirth ? goat.dateOfBirth.split("T")[0] : "",
-    gender: goat.gender,
-    colorMarkings: goat.colorMarkings || "",
-    photoUrl: goat.photoUrl || "",
-    purchaseDate: goat.purchaseDate ? goat.purchaseDate.split("T")[0] : "",
-    purchasePrice: goat.purchasePrice || "",
-    damId: goat.dam?.id || "",
-    sireId: goat.sire?.id || "",
-    locationId: goat.location?.id || "",
-    status: goat.status,
-    notes: goat.notes || "",
+    name: animal.name,
+    tagId: animal.tagId,
+    breed: animal.breed || "",
+    dateOfBirth: animal.dateOfBirth ? animal.dateOfBirth.split("T")[0] : "",
+    gender: animal.gender,
+    colorMarkings: animal.colorMarkings || "",
+    photoUrl: animal.photoUrl || "",
+    purchaseDate: animal.purchaseDate ? animal.purchaseDate.split("T")[0] : "",
+    purchasePrice: animal.purchasePrice || "",
+    damId: animal.dam?.id || "",
+    sireId: animal.sire?.id || "",
+    locationId: animal.location?.id || "",
+    status: animal.status,
+    notes: animal.notes || "",
   };
+
+  const genderLabel = (gender: string) =>
+    activeConfig?.genderLabels[gender as "FEMALE" | "MALE" | "NEUTERED_MALE"] ?? gender;
 
   return (
     <div>
       {/* Header */}
       <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div className="flex items-start gap-4">
-          {goat.photoUrl ? (
+          {animal.photoUrl ? (
             <Image
-              src={goat.photoUrl}
-              alt={goat.name}
+              src={animal.photoUrl}
+              alt={animal.name}
               width={80}
               height={80}
               className="h-20 w-20 rounded-xl object-cover border border-border"
             />
           ) : (
             <div className="flex h-20 w-20 items-center justify-center rounded-xl bg-primary/10 text-2xl font-bold text-primary">
-              {goat.name[0]}
+              {animal.name[0]}
             </div>
           )}
           <div>
             <div className="flex items-center gap-2">
-              <h1 className="text-2xl font-bold text-text">{goat.name}</h1>
-              <Badge variant={statusColors[goat.status] || "default"}>
-                {goat.status}
+              <h1 className="text-2xl font-bold text-text">{animal.name}</h1>
+              <Badge variant={statusColors[animal.status] || "default"}>
+                {animal.status}
               </Badge>
             </div>
-            <p className="text-sm text-text-light">Tag: #{goat.tagId}</p>
-            {goat.breed && <p className="text-sm text-text-light">{goat.breed}</p>}
+            <p className="text-sm text-text-light">Tag: #{animal.tagId}</p>
+            {animal.breed && <p className="text-sm text-text-light">{animal.breed}</p>}
           </div>
         </div>
         <div className="flex gap-2">
@@ -200,14 +211,14 @@ export default function GoatDetailPage({ params }: { params: Promise<{ id: strin
           </CardHeader>
           <CardContent>
             <dl className="space-y-3">
-              <DetailRow label="Gender" value={goat.gender} />
-              <DetailRow label="Location" value={goat.location?.name || "—"} />
-              <DetailRow label="Date of Birth" value={formatDate(goat.dateOfBirth)} />
-              <DetailRow label="Color/Markings" value={goat.colorMarkings || "—"} />
-              <DetailRow label="Purchase Date" value={formatDate(goat.purchaseDate)} />
-              <DetailRow label="Purchase Price" value={formatCurrency(goat.purchasePrice)} />
-              <DetailRow label="Added" value={formatDate(goat.createdAt)} />
-              {goat.notes && <DetailRow label="Notes" value={goat.notes} />}
+              <DetailRow label="Gender" value={genderLabel(animal.gender)} />
+              <DetailRow label="Location" value={animal.location?.name || "—"} />
+              <DetailRow label="Date of Birth" value={formatDate(animal.dateOfBirth)} />
+              <DetailRow label="Color/Markings" value={animal.colorMarkings || "—"} />
+              <DetailRow label="Purchase Date" value={formatDate(animal.purchaseDate)} />
+              <DetailRow label="Purchase Price" value={formatCurrency(animal.purchasePrice)} />
+              <DetailRow label="Added" value={formatDate(animal.createdAt)} />
+              {animal.notes && <DetailRow label="Notes" value={animal.notes} />}
             </dl>
           </CardContent>
         </Card>
@@ -220,20 +231,24 @@ export default function GoatDetailPage({ params }: { params: Promise<{ id: strin
           <CardContent>
             <div className="space-y-4">
               <div>
-                <p className="text-xs font-medium uppercase text-text-light">Dam (Mother)</p>
-                {goat.dam ? (
-                  <Link href={`/herd/${goat.dam.id}`} className="text-primary hover:underline">
-                    {goat.dam.name} (#{goat.dam.tagId})
+                <p className="text-xs font-medium uppercase text-text-light">
+                  {activeConfig?.breedingTerms.femaleRole ?? "Dam"} (Mother)
+                </p>
+                {animal.dam ? (
+                  <Link href={`/herd/${animal.dam.id}`} className="text-primary hover:underline">
+                    {animal.dam.name} (#{animal.dam.tagId})
                   </Link>
                 ) : (
                   <p className="text-sm text-text-light">Unknown</p>
                 )}
               </div>
               <div>
-                <p className="text-xs font-medium uppercase text-text-light">Sire (Father)</p>
-                {goat.sire ? (
-                  <Link href={`/herd/${goat.sire.id}`} className="text-primary hover:underline">
-                    {goat.sire.name} (#{goat.sire.tagId})
+                <p className="text-xs font-medium uppercase text-text-light">
+                  {activeConfig?.breedingTerms.maleRole ?? "Sire"} (Father)
+                </p>
+                {animal.sire ? (
+                  <Link href={`/herd/${animal.sire.id}`} className="text-primary hover:underline">
+                    {animal.sire.name} (#{animal.sire.tagId})
                   </Link>
                 ) : (
                   <p className="text-sm text-text-light">Unknown</p>
@@ -241,19 +256,21 @@ export default function GoatDetailPage({ params }: { params: Promise<{ id: strin
               </div>
               {offspring.length > 0 && (
                 <div>
-                  <p className="text-xs font-medium uppercase text-text-light mb-2">Offspring</p>
+                  <p className="text-xs font-medium uppercase text-text-light mb-2">
+                    {activeConfig?.breedingTerms.offspringPlural ?? "Offspring"}
+                  </p>
                   <ul className="space-y-1">
-                    {offspring.map((kid) => (
-                      <li key={kid.id} className="flex items-center justify-between rounded-lg bg-background px-3 py-2">
-                        <Link href={`/herd/${kid.id}`} className="text-sm text-primary hover:underline">
-                          {kid.name} (#{kid.tagId})
+                    {offspring.map((child) => (
+                      <li key={child.id} className="flex items-center justify-between rounded-lg bg-background px-3 py-2">
+                        <Link href={`/herd/${child.id}`} className="text-sm text-primary hover:underline">
+                          {child.name} (#{child.tagId})
                         </Link>
                         <div className="flex items-center gap-2">
-                          <Badge variant={kid.gender === "DOE" ? "success" : "info"}>
-                            {kid.gender}
+                          <Badge variant={child.gender === "FEMALE" ? "success" : "info"}>
+                            {genderLabel(child.gender)}
                           </Badge>
-                          <Badge variant={statusColors[kid.status] || "default"}>
-                            {kid.status}
+                          <Badge variant={statusColors[child.status] || "default"}>
+                            {child.status}
                           </Badge>
                         </div>
                       </li>
@@ -274,11 +291,11 @@ export default function GoatDetailPage({ params }: { params: Promise<{ id: strin
             </Link>
           </CardHeader>
           <CardContent>
-            {goat.vaccinations.length === 0 && goat.dewormings.length === 0 && goat.vetVisits.length === 0 ? (
+            {animal.vaccinations.length === 0 && animal.dewormings.length === 0 && animal.vetVisits.length === 0 ? (
               <p className="text-sm text-text-light">No health records yet.</p>
             ) : (
               <ul className="space-y-2">
-                {goat.vaccinations.map((v) => (
+                {animal.vaccinations.map((v) => (
                   <li key={v.id} className="flex items-center justify-between rounded-lg bg-background px-3 py-2">
                     <div>
                       <Badge variant="info" className="mr-2">Vaccine</Badge>
@@ -287,7 +304,7 @@ export default function GoatDetailPage({ params }: { params: Promise<{ id: strin
                     <span className="text-xs text-text-light">{formatDate(v.dateGiven)}</span>
                   </li>
                 ))}
-                {goat.dewormings.map((d) => (
+                {animal.dewormings.map((d) => (
                   <li key={d.id} className="flex items-center justify-between rounded-lg bg-background px-3 py-2">
                     <div>
                       <Badge variant="warning" className="mr-2">Dewormer</Badge>
@@ -296,7 +313,7 @@ export default function GoatDetailPage({ params }: { params: Promise<{ id: strin
                     <span className="text-xs text-text-light">{formatDate(d.dateGiven)}</span>
                   </li>
                 ))}
-                {goat.vetVisits.map((v) => (
+                {animal.vetVisits.map((v) => (
                   <li key={v.id} className="flex items-center justify-between rounded-lg bg-background px-3 py-2">
                     <div>
                       <Badge variant="error" className="mr-2">Vet</Badge>
@@ -311,16 +328,16 @@ export default function GoatDetailPage({ params }: { params: Promise<{ id: strin
         </Card>
 
         {/* Sale Info (if sold) */}
-        {goat.sale && (
+        {animal.sale && (
           <Card>
             <CardHeader>
               <CardTitle>Sale Information</CardTitle>
             </CardHeader>
             <CardContent>
               <dl className="space-y-3">
-                <DetailRow label="Sale Date" value={formatDate(goat.sale.saleDate)} />
-                <DetailRow label="Sale Price" value={formatCurrency(goat.sale.salePrice)} />
-                <DetailRow label="Buyer" value={goat.sale.buyerName || "—"} />
+                <DetailRow label="Sale Date" value={formatDate(animal.sale.saleDate)} />
+                <DetailRow label="Sale Price" value={formatCurrency(animal.sale.salePrice)} />
+                <DetailRow label="Buyer" value={animal.sale.buyerName || "—"} />
               </dl>
             </CardContent>
           </Card>
@@ -328,13 +345,13 @@ export default function GoatDetailPage({ params }: { params: Promise<{ id: strin
       </div>
 
       {/* Family Tree */}
-      {(goat.dam || goat.sire || offspring.length > 0) && (
+      {(animal.dam || animal.sire || offspring.length > 0) && (
         <Card className="mt-6">
           <CardHeader>
             <CardTitle>Family Tree</CardTitle>
           </CardHeader>
           <CardContent>
-            <FamilyTree goat={goat} offspring={offspring} />
+            <FamilyTree animal={animal} offspring={offspring} />
           </CardContent>
         </Card>
       )}
@@ -343,15 +360,19 @@ export default function GoatDetailPage({ params }: { params: Promise<{ id: strin
       <Modal
         open={showEditModal}
         onClose={() => setShowEditModal(false)}
-        title={`Edit ${goat.name}`}
+        title={`Edit ${animal.name}`}
         className="max-w-2xl max-h-[90vh] overflow-y-auto"
       >
-        <GoatForm
-          initialData={editInitialData}
-          onSubmit={handleUpdate}
-          onCancel={() => setShowEditModal(false)}
-          submitLabel="Save Changes"
-        />
+        {activeConfig && (
+          <AnimalForm
+            config={activeConfig}
+            herdId={activeHerd?.id}
+            initialData={editInitialData}
+            onSubmit={handleUpdate}
+            onCancel={() => setShowEditModal(false)}
+            submitLabel="Save Changes"
+          />
+        )}
       </Modal>
     </div>
   );
@@ -407,7 +428,7 @@ function TreeCard({ node }: { node: TreeNode }) {
         #{node.tagId}
       </p>
       {node.gender && !node.isCurrent && (
-        <p className={`text-xs mt-0.5 ${node.gender === "DOE" ? "text-primary" : "text-accent"}`}>
+        <p className={`text-xs mt-0.5 ${node.gender === "FEMALE" ? "text-primary" : "text-accent"}`}>
           {node.gender}
         </p>
       )}
@@ -419,13 +440,13 @@ function TreeCard({ node }: { node: TreeNode }) {
 }
 
 function FamilyTree({
-  goat,
+  animal,
   offspring,
 }: {
-  goat: GoatDetail;
+  animal: AnimalDetail;
   offspring: { id: string; name: string; tagId: string; gender: string; dateOfBirth: string | null; status: string; photoUrl: string | null }[];
 }) {
-  const hasParents = goat.dam || goat.sire;
+  const hasParents = animal.dam || animal.sire;
   const hasOffspring = offspring.length > 0;
 
   return (
@@ -438,8 +459,8 @@ function FamilyTree({
             <div className="flex w-full justify-center gap-6">
               <div className="flex flex-col items-center gap-1 w-36">
                 <span className="text-xs font-medium uppercase text-text-light tracking-wide">Dam</span>
-                {goat.dam ? (
-                  <TreeCard node={goat.dam} />
+                {animal.dam ? (
+                  <TreeCard node={animal.dam} />
                 ) : (
                   <div className="rounded-xl border border-dashed border-border px-3 py-2 text-center w-full">
                     <p className="text-xs text-text-light">Unknown</p>
@@ -448,8 +469,8 @@ function FamilyTree({
               </div>
               <div className="flex flex-col items-center gap-1 w-36">
                 <span className="text-xs font-medium uppercase text-text-light tracking-wide">Sire</span>
-                {goat.sire ? (
-                  <TreeCard node={goat.sire} />
+                {animal.sire ? (
+                  <TreeCard node={animal.sire} />
                 ) : (
                   <div className="rounded-xl border border-dashed border-border px-3 py-2 text-center w-full">
                     <p className="text-xs text-text-light">Unknown</p>
@@ -457,7 +478,7 @@ function FamilyTree({
                 )}
               </div>
             </div>
-            {/* Connector: left/right verticals meet horizontal bar, center vertical continues down */}
+            {/* Connector */}
             <div className="relative w-full" style={{ height: "2.5rem" }}>
               <div className="absolute w-px bg-border" style={{ left: "calc(50% - 84px)", top: 0, height: "50%" }} />
               <div className="absolute w-px bg-border" style={{ right: "calc(50% - 84px)", top: 0, height: "50%" }} />
@@ -467,10 +488,10 @@ function FamilyTree({
           </>
         )}
 
-        {/* Current goat */}
+        {/* Current animal */}
         <div className="flex flex-col items-center gap-1">
           {hasParents && <div className="w-px bg-border h-2" />}
-          <TreeCard node={{ ...goat, isCurrent: true }} />
+          <TreeCard node={{ ...animal, isCurrent: true }} />
         </div>
 
         {/* Connector down to offspring */}
@@ -490,10 +511,10 @@ function FamilyTree({
             </div>
             {/* Offspring row */}
             <div className="flex flex-wrap justify-center gap-4 mt-0">
-              {offspring.map((kid) => (
-                <div key={kid.id} className="flex flex-col items-center gap-1">
+              {offspring.map((child) => (
+                <div key={child.id} className="flex flex-col items-center gap-1">
                   <div className="w-px bg-border h-4" />
-                  <TreeCard node={kid} />
+                  <TreeCard node={child} />
                 </div>
               ))}
             </div>

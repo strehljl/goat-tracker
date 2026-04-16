@@ -7,12 +7,12 @@ export async function GET(request: NextRequest) {
   if (auth instanceof NextResponse) return auth;
   const { farmId } = auth;
 
-  const goatId = new URL(request.url).searchParams.get("goatId");
+  const animalId = new URL(request.url).searchParams.get("animalId");
 
   try {
     const vetVisits = await prisma.vetVisit.findMany({
-      where: goatId ? { farmId, goatId } : { farmId },
-      include: { goat: { select: { id: true, name: true, tagId: true } } },
+      where: animalId ? { farmId, animalId } : { farmId },
+      include: { animal: { select: { id: true, name: true, tagId: true } } },
       orderBy: { date: "desc" },
     });
     return NextResponse.json(vetVisits);
@@ -28,21 +28,21 @@ export async function POST(request: NextRequest) {
   const { farmId } = auth;
 
   try {
-    const { goatId, date, reason, diagnosis, treatment, cost, vetName, notes } = await request.json();
+    const { animalId, date, reason, diagnosis, treatment, cost, vetName, notes } = await request.json();
 
-    if (!goatId || !date || !reason) {
-      return NextResponse.json({ error: "Goat, date, and reason are required" }, { status: 400 });
+    if (!animalId || !date || !reason) {
+      return NextResponse.json({ error: "Animal, date, and reason are required" }, { status: 400 });
     }
 
-    const goat = await prisma.goat.findFirst({ where: { id: goatId, farmId } });
-    if (!goat) {
-      return NextResponse.json({ error: "Goat not found" }, { status: 404 });
+    const animal = await prisma.animal.findFirst({ where: { id: animalId, farmId } });
+    if (!animal) {
+      return NextResponse.json({ error: "Animal not found" }, { status: 404 });
     }
 
     const vetVisit = await prisma.vetVisit.create({
       data: {
         farmId,
-        goatId,
+        animalId,
         date: new Date(date),
         reason,
         diagnosis: diagnosis || null,
@@ -51,7 +51,7 @@ export async function POST(request: NextRequest) {
         vetName: vetName || null,
         notes: notes || null,
       },
-      include: { goat: { select: { id: true, name: true, tagId: true } } },
+      include: { animal: { select: { id: true, name: true, tagId: true } } },
     });
     return NextResponse.json(vetVisit, { status: 201 });
   } catch (error) {

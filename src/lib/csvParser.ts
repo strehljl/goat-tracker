@@ -2,7 +2,7 @@
 
 export type CsvRow = Record<string, string>;
 
-export interface GoatImportRow {
+export interface AnimalImportRow {
   name: string;
   tagId: string;
   gender: string;
@@ -20,7 +20,7 @@ export interface GoatImportRow {
 
 export interface ParsedImportRow {
   rowNumber: number;
-  data: GoatImportRow;
+  data: AnimalImportRow;
   errors: string[];
 }
 
@@ -107,7 +107,7 @@ export function validateAndNormalize(
   rows: CsvRow[],
   existingTagIds: Set<string>
 ): ParsedImportRow[] {
-  const VALID_GENDERS = new Set(["DOE", "BUCK", "WETHER"]);
+  const VALID_GENDERS = new Set(["FEMALE", "MALE", "NEUTERED_MALE"]);
   const VALID_STATUSES = new Set(["ACTIVE", "SOLD", "DECEASED"]);
   const seenTagIds = new Set<string>();
   const result: ParsedImportRow[] = [];
@@ -137,7 +137,7 @@ export function validateAndNormalize(
     if (!genderRaw) {
       errors.push("Gender is required");
     } else if (!VALID_GENDERS.has(genderRaw)) {
-      errors.push("Gender must be DOE, BUCK, or WETHER");
+      errors.push("Gender must be FEMALE, MALE, or NEUTERED_MALE");
     }
 
     // dateOfBirth
@@ -183,7 +183,7 @@ export function validateAndNormalize(
     const location = (row["location"] ?? "").trim() || undefined;
     const notes = (row["notes"] ?? "").trim() || undefined;
 
-    const data: GoatImportRow = {
+    const data: AnimalImportRow = {
       name,
       tagId,
       gender: genderRaw,

@@ -7,18 +7,33 @@ export async function GET(request: NextRequest) {
   if (auth instanceof NextResponse) return auth;
   const { farmId } = auth;
 
-  const status = new URL(request.url).searchParams.get("status");
+  const { searchParams } = new URL(request.url);
+  const status = searchParams.get("status");
+  const herdId = searchParams.get("herdId");
 
   try {
+    const where: Record<string, unknown> = { farmId };
+    if (status) where.status = status as "PENDING" | "CONFIRMED" | "FAILED" | "DELIVERED";
+
+    // If herdId provided, scope to animals in that herd
+    if (herdId) {
+      where.OR = [
+        { parentFemale: { herdId } },
+        { parentMale: { herdId } },
+      ];
+    }
+
     const events = await prisma.breedingEvent.findMany({
-      where: status
-        ? { farmId, status: status as "PENDING" | "CONFIRMED" | "FAILED" | "DELIVERED" }
-        : { farmId },
+      where,
       include: {
-        doe: { select: { id: true, name: true, tagId: true } },
-        buck: { select: { id: true, name: true, tagId: true } },
-        kiddingRecord: {
-          include: { kids: { include: { goat: { select: { id: true, name: true, tagId: true } } } } },
+        parentFemale: { select: { id: true, name: true, tagId: true } },
+        parentMale: { select: { id: true, name: true, tagId: true } },
+        birthRecord: {
+          include: {
+            offspring: {
+              include: { animal: { select: { id: true, name: true, tagId: true } } },
+            },
+          },
         },
       },
       orderBy: { breedingDate: "desc" },
@@ -36,32 +51,36 @@ export async function POST(request: NextRequest) {
   const { farmId } = auth;
 
   try {
-    const { doeId, buckId, breedingDate, expectedDueDate, notes } = await request.json();
+    const { parentFemaleId, parentMaleId, breedingDate, expectedDueDate, notes } =
+      await request.json();
 
-    if (!doeId || !buckId || !breedingDate) {
-      return NextResponse.json({ error: "Doe, buck, and breeding date are required" }, { status: 400 });
+    if (!parentFemaleId || !parentMaleId || !breedingDate) {
+      return NextResponse.json(
+        { error: "Female parent, male parent, and breeding date are required" },
+        { status: 400 }
+      );
     }
 
-    const [doe, buck] = await Promise.all([
-      prisma.goat.findFirst({ where: { id: doeId, farmId } }),
-      prisma.goat.findFirst({ where: { id: buckId, farmId } }),
+    const [female, male] = await Promise.all([
+      prisma.animal.findFirst({ where: { id: parentFemaleId, farmId } }),
+      prisma.animal.findFirst({ where: { id: parentMaleId, farmId } }),
     ]);
-    if (!doe || !buck) {
-      return NextResponse.json({ error: "Goat not found" }, { status: 404 });
+    if (!female || !male) {
+      return NextResponse.json({ error: "Animal not found" }, { status: 404 });
     }
 
     const event = await prisma.breedingEvent.create({
       data: {
         farmId,
-        doeId,
-        buckId,
+        parentFemaleId,
+        parentMaleId,
         breedingDate: new Date(breedingDate),
         expectedDueDate: expectedDueDate ? new Date(expectedDueDate) : null,
         notes: notes || null,
       },
       include: {
-        doe: { select: { id: true, name: true, tagId: true } },
-        buck: { select: { id: true, name: true, tagId: true } },
+        parentFemale: { select: { id: true, name: true, tagId: true } },
+        parentMale: { select: { id: true, name: true, tagId: true } },
       },
     });
     return NextResponse.json(event, { status: 201 });

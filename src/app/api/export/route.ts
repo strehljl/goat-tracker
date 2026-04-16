@@ -21,69 +21,71 @@ export async function GET(request: NextRequest) {
     let filename = "";
 
     if (type === "inventory") {
-      const goats = await prisma.goat.findMany({
+      const animals = await prisma.animal.findMany({
         where: { farmId },
         include: {
           dam: { select: { name: true, tagId: true } },
           sire: { select: { name: true, tagId: true } },
           location: { select: { name: true } },
+          herd: { select: { name: true, animalType: true } },
         },
         orderBy: { name: "asc" },
       });
 
-      csv = "Name,Tag ID,Breed,Date of Birth,Gender,Color/Markings,Location,Status,Purchase Date,Purchase Price,Dam,Sire,Notes\n";
-      for (const g of goats) {
+      csv = "Name,Tag ID,Breed,Date of Birth,Gender,Color/Markings,Location,Status,Purchase Date,Purchase Price,Dam,Sire,Herd,Notes\n";
+      for (const a of animals) {
         csv += [
-          quote(g.name),
-          quote(g.tagId),
-          quote(g.breed || ""),
-          g.dateOfBirth ? g.dateOfBirth.toISOString().split("T")[0] : "",
-          g.gender,
-          quote(g.colorMarkings || ""),
-          quote(g.location?.name || ""),
-          g.status,
-          g.purchaseDate ? g.purchaseDate.toISOString().split("T")[0] : "",
-          g.purchasePrice ? Number(g.purchasePrice).toFixed(2) : "",
-          g.dam ? `${g.dam.name} (${g.dam.tagId})` : "",
-          g.sire ? `${g.sire.name} (${g.sire.tagId})` : "",
-          quote(g.notes || ""),
+          quote(a.name),
+          quote(a.tagId),
+          quote(a.breed || ""),
+          a.dateOfBirth ? a.dateOfBirth.toISOString().split("T")[0] : "",
+          a.gender,
+          quote(a.colorMarkings || ""),
+          quote(a.location?.name || ""),
+          a.status,
+          a.purchaseDate ? a.purchaseDate.toISOString().split("T")[0] : "",
+          a.purchasePrice ? Number(a.purchasePrice).toFixed(2) : "",
+          a.dam ? `${a.dam.name} (${a.dam.tagId})` : "",
+          a.sire ? `${a.sire.name} (${a.sire.tagId})` : "",
+          quote(a.herd?.name || ""),
+          quote(a.notes || ""),
         ].join(",") + "\n";
       }
-      filename = "goat-inventory.csv";
+      filename = "animal-inventory.csv";
     } else if (type === "health") {
       const [vaccinations, medications, vetVisits, dewormings] = await Promise.all([
-        prisma.vaccination.findMany({ where: { farmId }, include: { goat: { select: { name: true, tagId: true } } }, orderBy: { dateGiven: "desc" } }),
-        prisma.medication.findMany({ where: { farmId }, include: { goat: { select: { name: true, tagId: true } } }, orderBy: { startDate: "desc" } }),
-        prisma.vetVisit.findMany({ where: { farmId }, include: { goat: { select: { name: true, tagId: true } } }, orderBy: { date: "desc" } }),
-        prisma.deworming.findMany({ where: { farmId }, include: { goat: { select: { name: true, tagId: true } } }, orderBy: { dateGiven: "desc" } }),
+        prisma.vaccination.findMany({ where: { farmId }, include: { animal: { select: { name: true, tagId: true } } }, orderBy: { dateGiven: "desc" } }),
+        prisma.medication.findMany({ where: { farmId }, include: { animal: { select: { name: true, tagId: true } } }, orderBy: { startDate: "desc" } }),
+        prisma.vetVisit.findMany({ where: { farmId }, include: { animal: { select: { name: true, tagId: true } } }, orderBy: { date: "desc" } }),
+        prisma.deworming.findMany({ where: { farmId }, include: { animal: { select: { name: true, tagId: true } } }, orderBy: { dateGiven: "desc" } }),
       ]);
 
-      csv = "Type,Goat,Tag ID,Name/Product,Date,Details,Cost,Notes\n";
+      csv = "Type,Animal,Tag ID,Name/Product,Date,Details,Cost,Notes\n";
       for (const v of vaccinations) {
-        csv += `Vaccination,${quote(v.goat.name)},${v.goat.tagId},${quote(v.name)},${v.dateGiven.toISOString().split("T")[0]},Next: ${v.nextDueDate ? v.nextDueDate.toISOString().split("T")[0] : "N/A"},,${quote(v.notes || "")}\n`;
+        csv += `Vaccination,${quote(v.animal.name)},${v.animal.tagId},${quote(v.name)},${v.dateGiven.toISOString().split("T")[0]},Next: ${v.nextDueDate ? v.nextDueDate.toISOString().split("T")[0] : "N/A"},,${quote(v.notes || "")}\n`;
       }
       for (const m of medications) {
-        csv += `Medication,${quote(m.goat.name)},${m.goat.tagId},${quote(m.name)},${m.startDate.toISOString().split("T")[0]},Dosage: ${m.dosage || "N/A"},,${quote(m.notes || "")}\n`;
+        csv += `Medication,${quote(m.animal.name)},${m.animal.tagId},${quote(m.name)},${m.startDate.toISOString().split("T")[0]},Dosage: ${m.dosage || "N/A"},,${quote(m.notes || "")}\n`;
       }
       for (const v of vetVisits) {
-        csv += `Vet Visit,${quote(v.goat.name)},${v.goat.tagId},${quote(v.reason)},${v.date.toISOString().split("T")[0]},${quote(v.diagnosis || "")},${v.cost ? Number(v.cost).toFixed(2) : ""},${quote(v.notes || "")}\n`;
+        csv += `Vet Visit,${quote(v.animal.name)},${v.animal.tagId},${quote(v.reason)},${v.date.toISOString().split("T")[0]},${quote(v.diagnosis || "")},${v.cost ? Number(v.cost).toFixed(2) : ""},${quote(v.notes || "")}\n`;
       }
       for (const d of dewormings) {
-        csv += `Deworming,${quote(d.goat.name)},${d.goat.tagId},${quote(d.productName)},${d.dateGiven.toISOString().split("T")[0]},Next: ${d.nextDueDate ? d.nextDueDate.toISOString().split("T")[0] : "N/A"},,${quote(d.notes || "")}\n`;
+        csv += `Deworming,${quote(d.animal.name)},${d.animal.tagId},${quote(d.productName)},${d.dateGiven.toISOString().split("T")[0]},Next: ${d.nextDueDate ? d.nextDueDate.toISOString().split("T")[0] : "N/A"},,${quote(d.notes || "")}\n`;
       }
       filename = "health-records.csv";
     } else if (type === "financials") {
       const [expenses, sales] = await Promise.all([
-        prisma.expense.findMany({ where: { farmId }, include: { goat: { select: { name: true, tagId: true } } }, orderBy: { date: "desc" } }),
-        prisma.sale.findMany({ where: { farmId }, include: { goat: { select: { name: true, tagId: true } } }, orderBy: { saleDate: "desc" } }),
+        prisma.expense.findMany({ where: { farmId }, include: { animal: { select: { name: true, tagId: true } } }, orderBy: { date: "desc" } }),
+        prisma.sale.findMany({ where: { farmId }, include: { animal: { select: { name: true, tagId: true } } }, orderBy: { saleDate: "desc" } }),
       ]);
 
-      csv = "Type,Date,Amount,Category,Goat,Description,Vendor/Buyer\n";
+      csv = "Type,Date,Amount,Category,Animal,Description,Vendor/Buyer\n";
       for (const e of expenses) {
-        csv += `Expense,${e.date.toISOString().split("T")[0]},${Number(e.amount).toFixed(2)},${e.category},${e.goat ? `${e.goat.name} (${e.goat.tagId})` : "Herd-wide"},${quote(e.description || "")},${quote(e.vendorName || "")}\n`;
+        csv += `Expense,${e.date.toISOString().split("T")[0]},${Number(e.amount).toFixed(2)},${e.category},${e.animal ? `${e.animal.name} (${e.animal.tagId})` : "Herd-wide"},${quote(e.description || "")},${quote(e.vendorName || "")}\n`;
       }
       for (const s of sales) {
-        csv += `Sale,${s.saleDate.toISOString().split("T")[0]},${Number(s.salePrice).toFixed(2)},SALE,${s.goat.name} (${s.goat.tagId}),,${quote(s.buyerName || "")}\n`;
+        csv += `Sale,${s.saleDate.toISOString().split("T")[0]},${Number(s.salePrice).toFixed(2)},SALE,${s.animal.name} (${s.animal.tagId}),,${quote(s.buyerName || "")}\n`;
       }
       filename = "financial-records.csv";
     } else {

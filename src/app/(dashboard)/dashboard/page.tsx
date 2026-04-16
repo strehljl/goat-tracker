@@ -5,17 +5,18 @@ import Link from "next/link";
 import Card, { CardHeader, CardTitle, CardContent } from "@/components/ui/Card";
 import Badge from "@/components/ui/Badge";
 import Skeleton from "@/components/ui/Skeleton";
+import { useFarm } from "@/components/providers/FarmProvider";
 
 interface DashboardData {
   stats: {
-    totalGoats: number;
-    doesCount: number;
-    bucksCount: number;
-    pregnantDoes: number;
-    kidsBornThisYear: number;
+    totalAnimals: number;
+    femaleCount: number;
+    maleCount: number;
+    pendingBreedings: number;
+    offspringThisYear: number;
   };
   alerts: { type: string; message: string; date?: string }[];
-  recentGoats: {
+  recentAnimals: {
     id: string;
     name: string;
     tagId: string;
@@ -25,32 +26,18 @@ interface DashboardData {
   }[];
   upcomingBreedings: {
     id: string;
-    doe: { name: string; tagId: string };
-    buck: { name: string; tagId: string };
+    parentFemale: { name: string; tagId: string };
+    parentMale: { name: string; tagId: string };
     breedingDate: string;
     expectedDueDate: string | null;
     status: string;
   }[];
 }
 
-const statCards = [
-  { key: "totalGoats" as const, label: "Total Goats", icon: "🐐", color: "bg-primary", href: "/herd" },
-  { key: "doesCount" as const, label: "Does", icon: "♀", color: "bg-secondary", href: "/herd?gender=DOE" },
-  { key: "bucksCount" as const, label: "Bucks", icon: "♂", color: "bg-accent", href: "/herd?gender=BUCK" },
-  { key: "pregnantDoes" as const, label: "Pregnant", icon: "🤰", color: "bg-warning", href: "/breeding" },
-  { key: "kidsBornThisYear" as const, label: "Kids This Year", icon: "🍼", color: "bg-success", href: "/herd?bornThisYear=true" },
-];
-
 const alertTypeColors: Record<string, "warning" | "info" | "error"> = {
   vaccination: "warning",
   deworming: "info",
-  kidding: "error",
-};
-
-const alertTypeLabels: Record<string, string> = {
-  vaccination: "Vaccination",
-  deworming: "Deworming",
-  kidding: "Kidding",
+  birth: "error",
 };
 
 function formatDate(dateStr: string) {
@@ -63,11 +50,14 @@ function formatDate(dateStr: string) {
 }
 
 export default function DashboardPage() {
+  const { activeConfig, activeHerd } = useFarm();
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch("/api/dashboard")
+    setLoading(true);
+    const url = activeHerd ? `/api/dashboard?herdId=${activeHerd.id}` : "/api/dashboard";
+    fetch(url)
       .then((res) => {
         if (!res.ok) throw new Error("Failed");
         return res.json();
@@ -75,7 +65,23 @@ export default function DashboardPage() {
       .then((d) => setData(d))
       .catch(console.error)
       .finally(() => setLoading(false));
-  }, []);
+  }, [activeHerd?.id]);
+
+  const statCards = activeConfig
+    ? [
+        { key: "totalAnimals" as const, label: activeConfig.dashboardLabels.totalLabel, icon: activeConfig.emoji, color: "bg-primary", href: "/herd" },
+        { key: "femaleCount" as const, label: activeConfig.dashboardLabels.femaleLabel, icon: "♀", color: "bg-secondary", href: "/herd?gender=FEMALE" },
+        { key: "maleCount" as const, label: activeConfig.dashboardLabels.maleLabel, icon: "♂", color: "bg-accent", href: "/herd?gender=MALE" },
+        { key: "pendingBreedings" as const, label: "Pending Breedings", icon: "🤰", color: "bg-warning", href: "/breeding" },
+        { key: "offspringThisYear" as const, label: activeConfig.dashboardLabels.offspringThisYearLabel, icon: "🍼", color: "bg-success", href: "/herd?bornThisYear=true" },
+      ]
+    : [];
+
+  const alertTypeLabels: Record<string, string> = {
+    vaccination: "Vaccination",
+    deworming: "Deworming",
+    birth: activeConfig?.breedingTerms.birthEventNoun ?? "Birth",
+  };
 
   if (loading) {
     return (
@@ -166,7 +172,7 @@ export default function DashboardPage() {
           </CardContent>
         </Card>
 
-        {/* Recent Goats */}
+        {/* Recently Added */}
         <Card>
           <CardHeader className="flex flex-row items-center justify-between">
             <CardTitle>Recently Added</CardTitle>
@@ -178,38 +184,36 @@ export default function DashboardPage() {
             </Link>
           </CardHeader>
           <CardContent>
-            {data.recentGoats.length === 0 ? (
+            {data.recentAnimals.length === 0 ? (
               <p className="text-sm text-text-light">
-                No goats registered yet.{" "}
+                No {activeConfig?.plural ?? "animals"} registered yet.{" "}
                 <Link href="/herd" className="text-primary hover:underline">
-                  Add your first goat
+                  Add your first {activeConfig?.singular ?? "animal"}
                 </Link>
               </p>
             ) : (
               <ul className="space-y-3">
-                {data.recentGoats.map((goat) => (
+                {data.recentAnimals.map((animal) => (
                   <li
-                    key={goat.id}
+                    key={animal.id}
                     className="flex items-center justify-between rounded-lg bg-background px-3 py-2"
                   >
                     <div>
                       <span className="font-medium text-text">
-                        {goat.name}
+                        {animal.name}
                       </span>
                       <span className="ml-2 text-sm text-text-light">
-                        #{goat.tagId}
+                        #{animal.tagId}
                       </span>
                     </div>
                     <div className="flex items-center gap-2">
-                      {goat.breed && (
+                      {animal.breed && (
                         <span className="text-xs text-text-light">
-                          {goat.breed}
+                          {animal.breed}
                         </span>
                       )}
-                      <Badge
-                        variant={goat.gender === "DOE" ? "success" : "info"}
-                      >
-                        {goat.gender}
+                      <Badge variant={animal.gender === "FEMALE" ? "success" : "info"}>
+                        {activeConfig?.genderLabels[animal.gender as "FEMALE" | "MALE" | "NEUTERED_MALE"] ?? animal.gender}
                       </Badge>
                     </div>
                   </li>
@@ -240,11 +244,11 @@ export default function DashboardPage() {
                   >
                     <div>
                       <span className="font-medium text-text">
-                        {event.doe.name}
+                        {event.parentFemale.name}
                       </span>
                       <span className="mx-1 text-text-light">x</span>
                       <span className="font-medium text-text">
-                        {event.buck.name}
+                        {event.parentMale.name}
                       </span>
                     </div>
                     <div className="flex items-center gap-2">

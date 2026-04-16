@@ -17,21 +17,22 @@ export async function PUT(
       return NextResponse.json({ error: "Breeding event not found" }, { status: 404 });
     }
 
-    const { doeId, buckId, breedingDate, expectedDueDate, status, notes } = await request.json();
+    const { parentFemaleId, parentMaleId, breedingDate, expectedDueDate, status, notes } =
+      await request.json();
 
-    const [doe, buck] = await Promise.all([
-      prisma.goat.findFirst({ where: { id: doeId, farmId } }),
-      prisma.goat.findFirst({ where: { id: buckId, farmId } }),
+    const [female, male] = await Promise.all([
+      prisma.animal.findFirst({ where: { id: parentFemaleId, farmId } }),
+      prisma.animal.findFirst({ where: { id: parentMaleId, farmId } }),
     ]);
-    if (!doe || !buck) {
-      return NextResponse.json({ error: "Goat not found" }, { status: 404 });
+    if (!female || !male) {
+      return NextResponse.json({ error: "Animal not found" }, { status: 404 });
     }
 
     const event = await prisma.breedingEvent.update({
       where: { id },
       data: {
-        doeId,
-        buckId,
+        parentFemaleId,
+        parentMaleId,
         breedingDate: new Date(breedingDate),
         expectedDueDate: expectedDueDate ? new Date(expectedDueDate) : null,
         status: status || undefined,

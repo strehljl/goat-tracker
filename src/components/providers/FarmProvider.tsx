@@ -8,6 +8,7 @@ import {
   useState,
 } from "react";
 import { useSession } from "next-auth/react";
+import { type AnimalConfig, type AnimalType, getAnimalConfig } from "@/lib/animalConfig";
 
 export type Farm = {
   id: string;
@@ -17,12 +18,26 @@ export type Farm = {
   isOwner: boolean;
 };
 
+export type Herd = {
+  id: string;
+  farmId: string;
+  name: string;
+  animalType: AnimalType;
+  description: string | null;
+};
+
 type FarmContextType = {
   activeFarm: Farm | null;
   farms: Farm[];
   switchFarm: (farmId: string) => Promise<void>;
   isLoading: boolean;
   refreshFarms: () => Promise<void>;
+  // Herd management
+  herds: Herd[];
+  activeHerd: Herd | null;
+  switchHerd: (herdId: string | null) => void;
+  refreshHerds: () => Promise<void>;
+  activeConfig: AnimalConfig;
 };
 
 const FarmContext = createContext<FarmContextType>({
@@ -31,12 +46,19 @@ const FarmContext = createContext<FarmContextType>({
   switchFarm: async () => {},
   isLoading: true,
   refreshFarms: async () => {},
+  herds: [],
+  activeHerd: null,
+  switchHerd: () => {},
+  refreshHerds: async () => {},
+  activeConfig: getAnimalConfig("GOAT"),
 });
 
 export function FarmProvider({ children }: { children: React.ReactNode }) {
   const { data: session, update } = useSession();
   const [farms, setFarms] = useState<Farm[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [herds, setHerds] = useState<Herd[]>([]);
+  const [activeHerdId, setActiveHerdId] = useState<string | null>(null);
 
   const fetchFarms = useCallback(async () => {
     try {
@@ -50,18 +72,48 @@ export function FarmProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
+  const fetchHerds = useCallback(async (farmId: string) => {
+    try {
+      const res = await fetch(`/api/herds?farmId=${farmId}`);
+      if (res.ok) {
+        const data: Herd[] = await res.json();
+        setHerds(data);
+        // Auto-select first herd if none selected or current selection is from a different farm
+        setActiveHerdId((prev) => {
+          const stillValid = data.some((h) => h.id === prev);
+          return stillValid ? prev : (data[0]?.id ?? null);
+        });
+      }
+    } catch {
+      setHerds([]);
+    }
+  }, []);
+
   useEffect(() => {
     if (session?.user?.id) {
       fetchFarms();
     } else if (session === null) {
-      // Explicitly signed out
       setFarms([]);
+      setHerds([]);
       setIsLoading(false);
     }
   }, [session?.user?.id, fetchFarms]);
 
   const activeFarm =
     farms.find((f) => f.id === session?.user?.activeFarmId) ?? null;
+
+  // Fetch herds whenever the active farm changes
+  useEffect(() => {
+    if (activeFarm?.id) {
+      fetchHerds(activeFarm.id);
+    } else {
+      setHerds([]);
+      setActiveHerdId(null);
+    }
+  }, [activeFarm?.id, fetchHerds]);
+
+  const activeHerd = herds.find((h) => h.id === activeHerdId) ?? herds[0] ?? null;
+  const activeConfig = getAnimalConfig(activeHerd?.animalType);
 
   const switchFarm = useCallback(
     async (farmId: string) => {
@@ -76,9 +128,24 @@ export function FarmProvider({ children }: { children: React.ReactNode }) {
     [update]
   );
 
+  const switchHerd = useCallback((herdId: string | null) => {
+    setActiveHerdId(herdId);
+  }, []);
+
   return (
     <FarmContext.Provider
-      value={{ activeFarm, farms, switchFarm, isLoading, refreshFarms: fetchFarms }}
+      value={{
+        activeFarm,
+        farms,
+        switchFarm,
+        isLoading,
+        refreshFarms: fetchFarms,
+        herds,
+        activeHerd,
+        switchHerd,
+        refreshHerds: activeFarm ? () => fetchHerds(activeFarm.id) : async () => {},
+        activeConfig,
+      }}
     >
       {children}
     </FarmContext.Provider>

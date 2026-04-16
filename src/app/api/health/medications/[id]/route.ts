@@ -17,17 +17,17 @@ export async function PUT(
       return NextResponse.json({ error: "Medication not found" }, { status: 404 });
     }
 
-    const { goatId, name, dosage, startDate, endDate, notes } = await request.json();
+    const { animalId, name, dosage, startDate, endDate, notes } = await request.json();
 
-    const goat = await prisma.goat.findFirst({ where: { id: goatId, farmId } });
-    if (!goat) {
-      return NextResponse.json({ error: "Goat not found" }, { status: 404 });
+    const animal = await prisma.animal.findFirst({ where: { id: animalId, farmId } });
+    if (!animal) {
+      return NextResponse.json({ error: "Animal not found" }, { status: 404 });
     }
 
     const medication = await prisma.medication.update({
       where: { id },
       data: {
-        goatId,
+        animalId,
         name,
         dosage: dosage || null,
         startDate: new Date(startDate),

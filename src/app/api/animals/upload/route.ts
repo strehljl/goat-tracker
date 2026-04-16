@@ -29,9 +29,13 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const mimeToExt: Record<string, string> = { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp" };
+    const mimeToExt: Record<string, string> = {
+      "image/jpeg": "jpg",
+      "image/png": "png",
+      "image/webp": "webp",
+    };
     const ext = mimeToExt[file.type] ?? "jpg";
-    const fileName = `goats/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+    const fileName = `animals/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
 
     const arrayBuffer = await file.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
@@ -45,10 +49,7 @@ export async function POST(request: NextRequest) {
 
     if (uploadError) {
       console.error("Upload error:", uploadError);
-      return NextResponse.json(
-        { error: "Failed to upload file" },
-        { status: 500 }
-      );
+      return NextResponse.json({ error: "Failed to upload file" }, { status: 500 });
     }
 
     const { data: urlData } = supabase.storage
@@ -58,9 +59,6 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ url: urlData.publicUrl });
   } catch (error) {
     console.error("Upload error:", error);
-    return NextResponse.json(
-      { error: "Failed to upload file" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "Failed to upload file" }, { status: 500 });
   }
 }

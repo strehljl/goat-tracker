@@ -8,22 +8,24 @@ import Input from "@/components/ui/Input";
 import Select from "@/components/ui/Select";
 import TextArea from "@/components/ui/TextArea";
 import { SkeletonTable } from "@/components/ui/Skeleton";
+import { useFarm } from "@/components/providers/FarmProvider";
+import { AnimalConfig } from "@/lib/animalConfig";
 
-interface GoatOption { id: string; name: string; tagId: string; gender: string }
+interface AnimalOption { id: string; name: string; tagId: string; gender: string }
 
 interface BreedingEvent {
   id: string;
-  doe: { id: string; name: string; tagId: string };
-  buck: { id: string; name: string; tagId: string };
+  parentFemale: { id: string; name: string; tagId: string };
+  parentMale: { id: string; name: string; tagId: string };
   breedingDate: string;
   expectedDueDate: string | null;
   status: string;
   notes: string | null;
-  kiddingRecord: {
+  birthRecord: {
     id: string;
-    kiddingDate: string;
+    birthDate: string;
     complications: string | null;
-    kids: { id: string; gender: string; birthWeight: string | null; status: string; goat: { name: string; tagId: string } | null }[];
+    offspring: { id: string; gender: string; birthWeight: string | null; status: string; animal: { name: string; tagId: string } | null }[];
   } | null;
 }
 
@@ -40,27 +42,31 @@ function formatDate(d: string | null) {
 }
 
 export default function BreedingPage() {
+  const { activeConfig, activeHerd } = useFarm();
   const [events, setEvents] = useState<BreedingEvent[]>([]);
-  const [goats, setGoats] = useState<GoatOption[]>([]);
+  const [animals, setAnimals] = useState<AnimalOption[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAddModal, setShowAddModal] = useState(false);
   const [showMassModal, setShowMassModal] = useState(false);
-  const [kiddingEvent, setKiddingEvent] = useState<BreedingEvent | null>(null);
+  const [birthEvent, setBirthEvent] = useState<BreedingEvent | null>(null);
   const [statusFilter, setStatusFilter] = useState("");
 
   useEffect(() => {
-    fetch("/api/goats?status=ACTIVE").then((r) => r.json()).then(setGoats).catch(console.error);
-  }, []);
+    const herdParam = activeHerd?.id ? `?herdId=${activeHerd.id}&status=ACTIVE` : "?status=ACTIVE";
+    fetch(`/api/animals${herdParam}`).then((r) => r.json()).then(setAnimals).catch(console.error);
+  }, [activeHerd?.id]);
 
   const fetchEvents = useCallback(async () => {
     setLoading(true);
-    const params = statusFilter ? `?status=${statusFilter}` : "";
+    const params = new URLSearchParams();
+    if (statusFilter) params.set("status", statusFilter);
+    if (activeHerd?.id) params.set("herdId", activeHerd.id);
     try {
-      const res = await fetch(`/api/breeding${params}`);
+      const res = await fetch(`/api/breeding?${params}`);
       setEvents(await res.json());
     } catch (e) { console.error(e); }
     finally { setLoading(false); }
-  }, [statusFilter]);
+  }, [statusFilter, activeHerd?.id]);
 
   useEffect(() => { fetchEvents(); }, [fetchEvents]);
 
@@ -79,7 +85,7 @@ export default function BreedingPage() {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          doeId: event.doe.id, buckId: event.buck.id,
+          parentFemaleId: event.parentFemale.id, parentMaleId: event.parentMale.id,
           breedingDate: event.breedingDate, expectedDueDate: event.expectedDueDate,
           status, notes: event.notes,
         }),
@@ -104,15 +110,23 @@ export default function BreedingPage() {
     }
   };
 
-  const does = useMemo(() => goats.filter((g) => g.gender === "DOE"), [goats]);
-  const bucks = useMemo(() => goats.filter((g) => g.gender === "BUCK"), [goats]);
+  const config = activeConfig;
+  const females = useMemo(() => animals.filter((a) => a.gender === "FEMALE"), [animals]);
+  const males = useMemo(() => animals.filter((a) => a.gender === "MALE"), [animals]);
+
+  const femaleLabel = config?.breedingTerms.femaleRole ?? "Female";
+  const maleLabel = config?.breedingTerms.maleRole ?? "Male";
+  const birthNoun = config?.breedingTerms.birthEventNoun ?? "Birth";
+  const offspringPlural = config?.breedingTerms.offspringPlural ?? "Offspring";
 
   return (
     <div>
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold text-text">Breeding</h1>
-          <p className="mt-1 text-sm text-text-light">Track breeding events and kidding records</p>
+          <p className="mt-1 text-sm text-text-light">
+            Track breeding events and {birthNoun.toLowerCase()} records
+          </p>
         </div>
         <div className="flex gap-2">
           <Button variant="outline" onClick={() => setShowMassModal(true)}>+ Mass Breeding</Button>
@@ -144,9 +158,9 @@ export default function BreedingPage() {
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <div className="flex items-center gap-2">
-                  <span className="font-medium text-text">{event.doe.name}</span>
+                  <span className="font-medium text-text">{event.parentFemale.name}</span>
                   <span className="text-text-light">x</span>
-                  <span className="font-medium text-text">{event.buck.name}</span>
+                  <span className="font-medium text-text">{event.parentMale.name}</span>
                   <Badge variant={statusColors[event.status] || "default"}>{event.status}</Badge>
                 </div>
                 <div className="mt-1 flex gap-4 text-xs text-text-light">
@@ -161,7 +175,7 @@ export default function BreedingPage() {
                 )}
                 {(event.status === "PENDING" || event.status === "CONFIRMED") && (
                   <>
-                    <Button size="sm" onClick={() => setKiddingEvent(event)}>Record Kidding</Button>
+                    <Button size="sm" onClick={() => setBirthEvent(event)}>Record {birthNoun}</Button>
                     <Button size="sm" variant="outline" onClick={() => handleStatusChange(event.id, "FAILED")}>Failed</Button>
                   </>
                 )}
@@ -169,22 +183,24 @@ export default function BreedingPage() {
               </div>
             </div>
 
-            {event.kiddingRecord && (
+            {event.birthRecord && (
               <div className="mt-3 rounded-lg bg-background p-3">
                 <p className="text-sm font-medium text-text">
-                  Kidding: {formatDate(event.kiddingRecord.kiddingDate)}
-                  {event.kiddingRecord.complications && (
-                    <span className="ml-2 text-xs text-error">Complications: {event.kiddingRecord.complications}</span>
+                  {birthNoun}: {formatDate(event.birthRecord.birthDate)}
+                  {event.birthRecord.complications && (
+                    <span className="ml-2 text-xs text-error">Complications: {event.birthRecord.complications}</span>
                   )}
                 </p>
-                {event.kiddingRecord.kids.length > 0 && (
+                {event.birthRecord.offspring.length > 0 && (
                   <ul className="mt-2 space-y-1">
-                    {event.kiddingRecord.kids.map((kid) => (
-                      <li key={kid.id} className="flex items-center gap-2 text-sm">
-                        <Badge variant={kid.gender === "DOE" ? "success" : "info"}>{kid.gender}</Badge>
-                        {kid.goat && <span className="text-text">{kid.goat.name} (#{kid.goat.tagId})</span>}
-                        {kid.birthWeight && <span className="text-xs text-text-light">{kid.birthWeight} lbs</span>}
-                        <Badge variant={kid.status === "ALIVE" ? "success" : "error"}>{kid.status}</Badge>
+                    {event.birthRecord.offspring.map((o) => (
+                      <li key={o.id} className="flex items-center gap-2 text-sm">
+                        <Badge variant={o.gender === "FEMALE" ? "success" : "info"}>
+                          {config?.genderLabels[o.gender as "FEMALE" | "MALE" | "NEUTERED_MALE"] ?? o.gender}
+                        </Badge>
+                        {o.animal && <span className="text-text">{o.animal.name} (#{o.animal.tagId})</span>}
+                        {o.birthWeight && <span className="text-xs text-text-light">{o.birthWeight} lbs</span>}
+                        <Badge variant={o.status === "ALIVE" ? "success" : "error"}>{o.status}</Badge>
                       </li>
                     ))}
                   </ul>
@@ -196,29 +212,45 @@ export default function BreedingPage() {
       </div>
 
       <Modal open={showMassModal} onClose={() => setShowMassModal(false)} title="Mass Breeding Event" className="max-w-lg">
-        <MassBreedingForm does={does} bucks={bucks} onSuccess={() => { setShowMassModal(false); fetchEvents(); }} onCancel={() => setShowMassModal(false)} />
+        <MassBreedingForm
+          females={females} males={males} config={config}
+          onSuccess={() => { setShowMassModal(false); fetchEvents(); }}
+          onCancel={() => setShowMassModal(false)}
+        />
       </Modal>
 
       <Modal open={showAddModal} onClose={() => setShowAddModal(false)} title="Add Breeding Event" className="max-w-lg">
-        <BreedingForm does={does} bucks={bucks} onSubmit={handleAdd} onCancel={() => setShowAddModal(false)} />
+        <BreedingForm females={females} males={males} config={config} onSubmit={handleAdd} onCancel={() => setShowAddModal(false)} />
       </Modal>
 
-      <Modal open={!!kiddingEvent} onClose={() => setKiddingEvent(null)} title={`Record Kidding - ${kiddingEvent?.doe.name}`} className="max-w-lg max-h-[90vh] overflow-y-auto">
-        {kiddingEvent && (
-          <KiddingForm breedingEventId={kiddingEvent.id} onSuccess={() => { setKiddingEvent(null); fetchEvents(); }} onCancel={() => setKiddingEvent(null)} />
+      <Modal
+        open={!!birthEvent}
+        onClose={() => setBirthEvent(null)}
+        title={`Record ${birthNoun} — ${birthEvent?.parentFemale.name}`}
+        className="max-w-lg max-h-[90vh] overflow-y-auto"
+      >
+        {birthEvent && (
+          <BirthForm
+            breedingEventId={birthEvent.id} config={config}
+            onSuccess={() => { setBirthEvent(null); fetchEvents(); }}
+            onCancel={() => setBirthEvent(null)}
+          />
         )}
       </Modal>
     </div>
   );
 }
 
-function BreedingForm({ does, bucks, onSubmit, onCancel }: {
-  does: GoatOption[]; bucks: GoatOption[];
+function BreedingForm({ females, males, config, onSubmit, onCancel }: {
+  females: AnimalOption[]; males: AnimalOption[]; config: AnimalConfig | null;
   onSubmit: (data: Record<string, string>) => Promise<void>; onCancel: () => void;
 }) {
-  const [form, setForm] = useState({ doeId: "", buckId: "", breedingDate: "", expectedDueDate: "", notes: "" });
+  const [form, setForm] = useState({ parentFemaleId: "", parentMaleId: "", breedingDate: "", expectedDueDate: "", notes: "" });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+
+  const femaleLabel = config?.breedingTerms.femaleRole ?? "Female";
+  const maleLabel = config?.breedingTerms.maleRole ?? "Male";
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -231,10 +263,14 @@ function BreedingForm({ does, bucks, onSubmit, onCancel }: {
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       {error && <div className="rounded-lg bg-error/10 px-4 py-3 text-sm text-error">{error}</div>}
-      <Select id="b-doe" label="Doe *" value={form.doeId} onChange={(e) => setForm({ ...form, doeId: e.target.value })}
-        options={does.map((d) => ({ value: d.id, label: `${d.name} (#${d.tagId})` }))} placeholder="Select doe" />
-      <Select id="b-buck" label="Buck *" value={form.buckId} onChange={(e) => setForm({ ...form, buckId: e.target.value })}
-        options={bucks.map((b) => ({ value: b.id, label: `${b.name} (#${b.tagId})` }))} placeholder="Select buck" />
+      <Select id="b-female" label={`${femaleLabel} *`} value={form.parentFemaleId}
+        onChange={(e) => setForm({ ...form, parentFemaleId: e.target.value })}
+        options={females.map((f) => ({ value: f.id, label: `${f.name} (#${f.tagId})` }))}
+        placeholder={`Select ${femaleLabel.toLowerCase()}`} />
+      <Select id="b-male" label={`${maleLabel} *`} value={form.parentMaleId}
+        onChange={(e) => setForm({ ...form, parentMaleId: e.target.value })}
+        options={males.map((m) => ({ value: m.id, label: `${m.name} (#${m.tagId})` }))}
+        placeholder={`Select ${maleLabel.toLowerCase()}`} />
       <div className="grid gap-4 sm:grid-cols-2">
         <Input id="b-date" label="Breeding Date *" type="date" value={form.breedingDate} onChange={(e) => {
           const breedingDate = e.target.value;
@@ -246,7 +282,8 @@ function BreedingForm({ does, bucks, onSubmit, onCancel }: {
           }
           setForm({ ...form, breedingDate, expectedDueDate });
         }} required />
-        <Input id="b-due" label="Expected Due Date" type="date" value={form.expectedDueDate} onChange={(e) => setForm({ ...form, expectedDueDate: e.target.value })} />
+        <Input id="b-due" label="Expected Due Date" type="date" value={form.expectedDueDate}
+          onChange={(e) => setForm({ ...form, expectedDueDate: e.target.value })} />
       </div>
       <TextArea id="b-notes" label="Notes" value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} rows={2} />
       <div className="flex justify-end gap-3">
@@ -257,32 +294,34 @@ function BreedingForm({ does, bucks, onSubmit, onCancel }: {
   );
 }
 
-// === Doe Checkbox List ===
+// === Female Checkbox List ===
 
-function DoeCheckboxList({ does, selected, onChange }: {
-  does: GoatOption[]; selected: string[]; onChange: (ids: string[]) => void;
+function FemaleCheckboxList({ females, label, selected, onChange }: {
+  females: AnimalOption[]; label: string; selected: string[]; onChange: (ids: string[]) => void;
 }) {
-  const allSelected = selected.length === does.length && does.length > 0;
-  const toggleAll = () => onChange(allSelected ? [] : does.map((d) => d.id));
+  const allSelected = selected.length === females.length && females.length > 0;
+  const toggleAll = () => onChange(allSelected ? [] : females.map((f) => f.id));
   const toggle = (id: string) =>
     onChange(selected.includes(id) ? selected.filter((s) => s !== id) : [...selected, id]);
 
   return (
     <div>
       <div className="mb-1 flex items-center justify-between">
-        <label className="text-sm font-medium text-text">Does * <span className="text-text-light">({selected.length} selected)</span></label>
+        <label className="text-sm font-medium text-text">
+          {label} * <span className="text-text-light">({selected.length} selected)</span>
+        </label>
         <button type="button" onClick={toggleAll} className="text-xs font-medium text-primary hover:underline">
           {allSelected ? "Deselect All" : "Select All"}
         </button>
       </div>
       <div className="max-h-48 overflow-y-auto rounded-lg border border-border bg-surface p-2 space-y-1">
-        {does.length === 0 ? (
-          <p className="px-2 py-1 text-sm text-text-light">No active does found.</p>
-        ) : does.map((d) => (
-          <label key={d.id} className="flex cursor-pointer items-center gap-2 rounded px-2 py-1 hover:bg-background">
-            <input type="checkbox" checked={selected.includes(d.id)} onChange={() => toggle(d.id)} className="accent-primary" />
-            <span className="text-sm text-text">{d.name}</span>
-            <span className="text-xs text-text-light">#{d.tagId}</span>
+        {females.length === 0 ? (
+          <p className="px-2 py-1 text-sm text-text-light">No active {label.toLowerCase()}s found.</p>
+        ) : females.map((f) => (
+          <label key={f.id} className="flex cursor-pointer items-center gap-2 rounded px-2 py-1 hover:bg-background">
+            <input type="checkbox" checked={selected.includes(f.id)} onChange={() => toggle(f.id)} className="accent-primary" />
+            <span className="text-sm text-text">{f.name}</span>
+            <span className="text-xs text-text-light">#{f.tagId}</span>
           </label>
         ))}
       </div>
@@ -292,13 +331,17 @@ function DoeCheckboxList({ does, selected, onChange }: {
 
 // === Mass Breeding Form ===
 
-function MassBreedingForm({ does, bucks, onSuccess, onCancel }: {
-  does: GoatOption[]; bucks: GoatOption[]; onSuccess: () => void; onCancel: () => void;
+function MassBreedingForm({ females, males, config, onSuccess, onCancel }: {
+  females: AnimalOption[]; males: AnimalOption[]; config: AnimalConfig | null;
+  onSuccess: () => void; onCancel: () => void;
 }) {
-  const [selectedDoeIds, setSelectedDoeIds] = useState<string[]>([]);
-  const [form, setForm] = useState({ buckId: "", breedingDate: "", expectedDueDate: "", notes: "" });
+  const [selectedFemaleIds, setSelectedFemaleIds] = useState<string[]>([]);
+  const [form, setForm] = useState({ parentMaleId: "", breedingDate: "", expectedDueDate: "", notes: "" });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+
+  const femaleLabel = config?.breedingTerms.femaleRole ?? "Female";
+  const maleLabel = config?.breedingTerms.maleRole ?? "Male";
 
   const handleDateChange = (breedingDate: string) => {
     let expectedDueDate = form.expectedDueDate;
@@ -312,18 +355,18 @@ function MassBreedingForm({ does, bucks, onSuccess, onCancel }: {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (selectedDoeIds.length === 0) { setError("Select at least one doe."); return; }
-    if (!form.buckId) { setError("A buck is required."); return; }
+    if (selectedFemaleIds.length === 0) { setError(`Select at least one ${femaleLabel.toLowerCase()}.`); return; }
+    if (!form.parentMaleId) { setError(`A ${maleLabel.toLowerCase()} is required.`); return; }
     if (!form.breedingDate) { setError("Breeding date is required."); return; }
     setLoading(true);
     setError("");
     try {
       const results = await Promise.allSettled(
-        selectedDoeIds.map((doeId) =>
+        selectedFemaleIds.map((parentFemaleId) =>
           fetch("/api/breeding", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ ...form, doeId }),
+            body: JSON.stringify({ ...form, parentFemaleId }),
           })
         )
       );
@@ -340,52 +383,73 @@ function MassBreedingForm({ does, bucks, onSuccess, onCancel }: {
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       {error && <div className="rounded-lg bg-error/10 px-4 py-3 text-sm text-error">{error}</div>}
-      <Select id="mb-buck" label="Buck *" value={form.buckId} onChange={(e) => setForm({ ...form, buckId: e.target.value })}
-        options={bucks.map((b) => ({ value: b.id, label: `${b.name} (#${b.tagId})` }))} placeholder="Select buck" />
-      <DoeCheckboxList does={does} selected={selectedDoeIds} onChange={setSelectedDoeIds} />
+      <Select id="mb-male" label={`${maleLabel} *`} value={form.parentMaleId}
+        onChange={(e) => setForm({ ...form, parentMaleId: e.target.value })}
+        options={males.map((m) => ({ value: m.id, label: `${m.name} (#${m.tagId})` }))}
+        placeholder={`Select ${maleLabel.toLowerCase()}`} />
+      <FemaleCheckboxList females={females} label={femaleLabel} selected={selectedFemaleIds} onChange={setSelectedFemaleIds} />
       <div className="grid gap-4 sm:grid-cols-2">
-        <Input id="mb-date" label="Breeding Date *" type="date" value={form.breedingDate} onChange={(e) => handleDateChange(e.target.value)} required />
-        <Input id="mb-due" label="Expected Due Date" type="date" value={form.expectedDueDate} onChange={(e) => setForm({ ...form, expectedDueDate: e.target.value })} />
+        <Input id="mb-date" label="Breeding Date *" type="date" value={form.breedingDate}
+          onChange={(e) => handleDateChange(e.target.value)} required />
+        <Input id="mb-due" label="Expected Due Date" type="date" value={form.expectedDueDate}
+          onChange={(e) => setForm({ ...form, expectedDueDate: e.target.value })} />
       </div>
       <TextArea id="mb-notes" label="Notes" value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} rows={2} />
       <div className="flex justify-end gap-3">
         <Button type="button" variant="outline" onClick={onCancel}>Cancel</Button>
         <Button type="submit" loading={loading}>
-          Create {selectedDoeIds.length > 0 ? `(${selectedDoeIds.length} events)` : ""}
+          Create {selectedFemaleIds.length > 0 ? `(${selectedFemaleIds.length} events)` : ""}
         </Button>
       </div>
     </form>
   );
 }
 
-interface KidEntry { gender: string; birthWeight: string; status: string; registerAsGoat: boolean; name: string; tagId: string }
+interface OffspringEntry { gender: string; birthWeight: string; status: string; registerAsAnimal: boolean; name: string; tagId: string }
 
-function KiddingForm({ breedingEventId, onSuccess, onCancel }: {
-  breedingEventId: string; onSuccess: () => void; onCancel: () => void;
+function BirthForm({ breedingEventId, config, onSuccess, onCancel }: {
+  breedingEventId: string; config: AnimalConfig | null; onSuccess: () => void; onCancel: () => void;
 }) {
-  const [kiddingDate, setKiddingDate] = useState("");
+  const [birthDate, setBirthDate] = useState("");
   const [complications, setComplications] = useState("");
   const [notes, setNotes] = useState("");
-  const [kids, setKids] = useState<KidEntry[]>([{ gender: "DOE", birthWeight: "", status: "ALIVE", registerAsGoat: true, name: "", tagId: "" }]);
+  const [offspring, setOffspring] = useState<OffspringEntry[]>([
+    { gender: "FEMALE", birthWeight: "", status: "ALIVE", registerAsAnimal: true, name: "", tagId: "" }
+  ]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  const addKid = () => setKids([...kids, { gender: "DOE", birthWeight: "", status: "ALIVE", registerAsGoat: true, name: "", tagId: "" }]);
-  const removeKid = (i: number) => setKids(kids.filter((_, idx) => idx !== i));
-  const updateKid = (i: number, field: keyof KidEntry, value: string | boolean) => {
-    const updated = [...kids];
+  const birthNoun = config?.breedingTerms.birthEventNoun ?? "Birth";
+  const offspringSingular = config?.breedingTerms.offspringSingular ?? "Offspring";
+  const singularCapitalized = config?.singularCapitalized ?? "Animal";
+  const tagIdPlaceholder = config?.tagIdPlaceholder ?? "e.g. AN-001";
+
+  const addOffspring = () => setOffspring([...offspring, { gender: "FEMALE", birthWeight: "", status: "ALIVE", registerAsAnimal: true, name: "", tagId: "" }]);
+  const removeOffspring = (i: number) => setOffspring(offspring.filter((_, idx) => idx !== i));
+  const updateOffspring = (i: number, field: keyof OffspringEntry, value: string | boolean) => {
+    const updated = [...offspring];
     (updated[i] as unknown as Record<string, string | boolean>)[field] = value;
-    setKids(updated);
+    setOffspring(updated);
   };
+
+  const genderOptions = config
+    ? [
+        { value: "FEMALE", label: config.genderLabels.FEMALE },
+        { value: "MALE", label: config.genderLabels.MALE },
+      ]
+    : [
+        { value: "FEMALE", label: "Female" },
+        { value: "MALE", label: "Male" },
+      ];
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true); setError("");
     try {
-      const res = await fetch(`/api/breeding/${breedingEventId}/kidding`, {
+      const res = await fetch(`/api/breeding/${breedingEventId}/birth`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ kiddingDate, complications, notes, kids }),
+        body: JSON.stringify({ birthDate, complications, notes, offspring }),
       });
       if (!res.ok) throw new Error((await res.json()).error);
       onSuccess();
@@ -397,39 +461,54 @@ function KiddingForm({ breedingEventId, onSuccess, onCancel }: {
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       {error && <div className="rounded-lg bg-error/10 px-4 py-3 text-sm text-error">{error}</div>}
-      <Input id="k-date" label="Kidding Date *" type="date" value={kiddingDate} onChange={(e) => setKiddingDate(e.target.value)} required />
-      <TextArea id="k-comp" label="Complications" value={complications} onChange={(e) => setComplications(e.target.value)} rows={2} />
-      <TextArea id="k-notes" label="Notes" value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} />
+      <Input id="b-date" label={`${birthNoun} Date *`} type="date" value={birthDate}
+        onChange={(e) => setBirthDate(e.target.value)} required />
+      <TextArea id="b-comp" label="Complications" value={complications}
+        onChange={(e) => setComplications(e.target.value)} rows={2} />
+      <TextArea id="b-notes" label="Notes" value={notes}
+        onChange={(e) => setNotes(e.target.value)} rows={2} />
 
       <div>
         <div className="flex items-center justify-between mb-2">
-          <label className="text-sm font-medium text-text">Kids</label>
-          <Button type="button" size="sm" variant="outline" onClick={addKid}>+ Add Kid</Button>
+          <label className="text-sm font-medium text-text">{config?.breedingTerms.offspringPlural ?? "Offspring"}</label>
+          <Button type="button" size="sm" variant="outline" onClick={addOffspring}>
+            + Add {offspringSingular}
+          </Button>
         </div>
-        {kids.map((kid, i) => (
+        {offspring.map((o, i) => (
           <div key={i} className="mb-3 rounded-lg border border-border bg-background p-3 space-y-3">
             <div className="flex items-center justify-between">
-              <span className="text-sm font-medium text-text">Kid #{i + 1}</span>
-              {kids.length > 1 && (
-                <button type="button" onClick={() => removeKid(i)} className="text-xs text-error hover:underline">Remove</button>
+              <span className="text-sm font-medium text-text">{offspringSingular} #{i + 1}</span>
+              {offspring.length > 1 && (
+                <button type="button" onClick={() => removeOffspring(i)} className="text-xs text-error hover:underline">Remove</button>
               )}
             </div>
             <div className="grid gap-3 sm:grid-cols-3">
-              <Select id={`kid-${i}-gender`} label="Gender" value={kid.gender} onChange={(e) => updateKid(i, "gender", e.target.value)}
-                options={[{ value: "DOE", label: "Doe" }, { value: "BUCK", label: "Buck" }]} />
-              <Input id={`kid-${i}-weight`} label="Birth Weight (lbs)" type="number" step="0.01" value={kid.birthWeight} onChange={(e) => updateKid(i, "birthWeight", e.target.value)} />
-              <Select id={`kid-${i}-status`} label="Status" value={kid.status} onChange={(e) => updateKid(i, "status", e.target.value)}
+              <Select id={`o-${i}-gender`} label="Gender" value={o.gender}
+                onChange={(e) => updateOffspring(i, "gender", e.target.value)}
+                options={genderOptions} />
+              <Input id={`o-${i}-weight`} label="Birth Weight (lbs)" type="number" step="0.01"
+                value={o.birthWeight} onChange={(e) => updateOffspring(i, "birthWeight", e.target.value)} />
+              <Select id={`o-${i}-status`} label="Status" value={o.status}
+                onChange={(e) => updateOffspring(i, "status", e.target.value)}
                 options={[{ value: "ALIVE", label: "Alive" }, { value: "STILLBORN", label: "Stillborn" }]} />
             </div>
             <div className="flex items-center gap-2">
-              <input type="checkbox" id={`kid-${i}-reg`} checked={kid.registerAsGoat}
-                onChange={(e) => updateKid(i, "registerAsGoat", e.target.checked)} className="rounded border-border" />
-              <label htmlFor={`kid-${i}-reg`} className="text-sm text-text">Register as goat in herd</label>
+              <input type="checkbox" id={`o-${i}-reg`} checked={o.registerAsAnimal}
+                onChange={(e) => updateOffspring(i, "registerAsAnimal", e.target.checked)}
+                className="rounded border-border" />
+              <label htmlFor={`o-${i}-reg`} className="text-sm text-text">
+                Register as {singularCapitalized.toLowerCase()} in herd
+              </label>
             </div>
-            {kid.registerAsGoat && (
+            {o.registerAsAnimal && (
               <div className="grid gap-3 sm:grid-cols-2">
-                <Input id={`kid-${i}-name`} label="Name" value={kid.name} onChange={(e) => updateKid(i, "name", e.target.value)} placeholder="Kid name" />
-                <Input id={`kid-${i}-tag`} label="Tag ID" value={kid.tagId} onChange={(e) => updateKid(i, "tagId", e.target.value)} placeholder="e.g. GT-010" />
+                <Input id={`o-${i}-name`} label="Name" value={o.name}
+                  onChange={(e) => updateOffspring(i, "name", e.target.value)}
+                  placeholder={`${offspringSingular} name`} />
+                <Input id={`o-${i}-tag`} label="Tag ID" value={o.tagId}
+                  onChange={(e) => updateOffspring(i, "tagId", e.target.value)}
+                  placeholder={tagIdPlaceholder} />
               </div>
             )}
           </div>
@@ -438,7 +517,7 @@ function KiddingForm({ breedingEventId, onSuccess, onCancel }: {
 
       <div className="flex justify-end gap-3">
         <Button type="button" variant="outline" onClick={onCancel}>Cancel</Button>
-        <Button type="submit" loading={loading}>Record Kidding</Button>
+        <Button type="submit" loading={loading}>Record {birthNoun}</Button>
       </div>
     </form>
   );

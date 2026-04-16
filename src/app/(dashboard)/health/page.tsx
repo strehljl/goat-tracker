@@ -8,8 +8,10 @@ import Input from "@/components/ui/Input";
 import Select from "@/components/ui/Select";
 import TextArea from "@/components/ui/TextArea";
 import { SkeletonTable } from "@/components/ui/Skeleton";
+import { useFarm } from "@/components/providers/FarmProvider";
+import type { AnimalConfig } from "@/lib/animalConfig";
 
-interface GoatOption {
+interface AnimalOption {
   id: string;
   name: string;
   tagId: string;
@@ -41,24 +43,26 @@ function formatCurrency(val: string | null) {
 }
 
 export default function HealthPage() {
+  const { activeConfig, activeHerd } = useFarm();
   const [activeTab, setActiveTab] = useState<Tab>("vaccinations");
   const [records, setRecords] = useState<Record<string, unknown>[]>([]);
-  const [goats, setGoats] = useState<GoatOption[]>([]);
+  const [animals, setAnimals] = useState<AnimalOption[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAddModal, setShowAddModal] = useState(false);
   const [showBulkModal, setShowBulkModal] = useState(false);
-  const [goatFilter, setGoatFilter] = useState("");
+  const [animalFilter, setAnimalFilter] = useState("");
 
   useEffect(() => {
-    fetch("/api/goats?status=ACTIVE")
+    const herdParam = activeHerd ? `&herdId=${activeHerd.id}` : "";
+    fetch(`/api/animals?status=ACTIVE${herdParam}`)
       .then((res) => res.json())
-      .then(setGoats)
+      .then(setAnimals)
       .catch(console.error);
-  }, []);
+  }, [activeHerd]);
 
   const fetchRecords = useCallback(async () => {
     setLoading(true);
-    const params = goatFilter ? `?goatId=${goatFilter}` : "";
+    const params = animalFilter ? `?animalId=${animalFilter}` : "";
     try {
       const res = await fetch(`/api/health/${activeTab}${params}`);
       const data = await res.json();
@@ -68,7 +72,7 @@ export default function HealthPage() {
     } finally {
       setLoading(false);
     }
-  }, [activeTab, goatFilter]);
+  }, [activeTab, animalFilter]);
 
   useEffect(() => {
     fetchRecords();
@@ -85,6 +89,9 @@ export default function HealthPage() {
       alert("Failed to delete record. Please try again.");
     }
   };
+
+  const animalLabel = activeConfig?.singular ?? "Animal";
+  const animalsLabel = activeConfig?.plural ?? "animals";
 
   return (
     <div>
@@ -123,14 +130,14 @@ export default function HealthPage() {
       {/* Filter */}
       <div className="mt-4">
         <select
-          id="goatFilter"
-          value={goatFilter}
-          onChange={(e) => setGoatFilter(e.target.value)}
+          id="animalFilter"
+          value={animalFilter}
+          onChange={(e) => setAnimalFilter(e.target.value)}
           className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-text focus:outline-none focus:ring-2 focus:ring-primary/50 sm:w-64"
         >
-          <option value="">All goats</option>
-          {goats.map((g) => (
-            <option key={g.id} value={g.id}>{g.name} (#{g.tagId})</option>
+          <option value="">All {animalsLabel}</option>
+          {animals.map((a) => (
+            <option key={a.id} value={a.id}>{a.name} (#{a.tagId})</option>
           ))}
         </select>
       </div>
@@ -169,16 +176,16 @@ export default function HealthPage() {
         className="max-w-lg max-h-[90vh] overflow-y-auto"
       >
         {activeTab === "vaccinations" && (
-          <VaccinationForm goats={goats} onSuccess={() => { setShowAddModal(false); fetchRecords(); }} onCancel={() => setShowAddModal(false)} />
+          <VaccinationForm config={activeConfig} animals={animals} animalLabel={animalLabel} onSuccess={() => { setShowAddModal(false); fetchRecords(); }} onCancel={() => setShowAddModal(false)} />
         )}
         {activeTab === "medications" && (
-          <MedicationForm goats={goats} onSuccess={() => { setShowAddModal(false); fetchRecords(); }} onCancel={() => setShowAddModal(false)} />
+          <MedicationForm config={activeConfig} animals={animals} animalLabel={animalLabel} onSuccess={() => { setShowAddModal(false); fetchRecords(); }} onCancel={() => setShowAddModal(false)} />
         )}
         {activeTab === "vet-visits" && (
-          <VetVisitForm goats={goats} onSuccess={() => { setShowAddModal(false); fetchRecords(); }} onCancel={() => setShowAddModal(false)} />
+          <VetVisitForm config={activeConfig} animals={animals} animalLabel={animalLabel} onSuccess={() => { setShowAddModal(false); fetchRecords(); }} onCancel={() => setShowAddModal(false)} />
         )}
         {activeTab === "dewormings" && (
-          <DewormingForm goats={goats} onSuccess={() => { setShowAddModal(false); fetchRecords(); }} onCancel={() => setShowAddModal(false)} />
+          <DewormingForm config={activeConfig} animals={animals} animalLabel={animalLabel} onSuccess={() => { setShowAddModal(false); fetchRecords(); }} onCancel={() => setShowAddModal(false)} />
         )}
       </Modal>
 
@@ -190,10 +197,10 @@ export default function HealthPage() {
         className="max-w-xl max-h-[90vh] overflow-y-auto"
       >
         {activeTab === "vaccinations" && (
-          <BulkVaccinationForm goats={goats} onSuccess={() => { setShowBulkModal(false); fetchRecords(); }} onCancel={() => setShowBulkModal(false)} />
+          <BulkVaccinationForm config={activeConfig} animals={animals} animalsLabel={animalsLabel} onSuccess={() => { setShowBulkModal(false); fetchRecords(); }} onCancel={() => setShowBulkModal(false)} />
         )}
         {activeTab === "dewormings" && (
-          <BulkDewormingForm goats={goats} onSuccess={() => { setShowBulkModal(false); fetchRecords(); }} onCancel={() => setShowBulkModal(false)} />
+          <BulkDewormingForm config={activeConfig} animals={animals} animalsLabel={animalsLabel} onSuccess={() => { setShowBulkModal(false); fetchRecords(); }} onCancel={() => setShowBulkModal(false)} />
         )}
       </Modal>
     </div>
@@ -203,13 +210,13 @@ export default function HealthPage() {
 // === Record Cards ===
 
 function VaccinationCard({ record: r, onDelete }: { record: Record<string, unknown>; onDelete: (id: string) => void }) {
-  const goat = r.goat as { name: string; tagId: string };
+  const animal = r.animal as { name: string; tagId: string };
   return (
     <div className="flex items-center justify-between rounded-xl border border-border bg-surface px-4 py-3">
       <div className="flex-1">
         <div className="flex items-center gap-2">
           <span className="font-medium text-text">{r.name as string}</span>
-          <Badge variant="info">{goat.name} #{goat.tagId}</Badge>
+          <Badge variant="info">{animal.name} #{animal.tagId}</Badge>
         </div>
         <div className="mt-1 flex gap-4 text-xs text-text-light">
           <span>Given: {formatDate(r.dateGiven as string)}</span>
@@ -223,14 +230,14 @@ function VaccinationCard({ record: r, onDelete }: { record: Record<string, unkno
 }
 
 function MedicationCard({ record: r, onDelete }: { record: Record<string, unknown>; onDelete: (id: string) => void }) {
-  const goat = r.goat as { name: string; tagId: string };
+  const animal = r.animal as { name: string; tagId: string };
   return (
     <div className="flex items-center justify-between rounded-xl border border-border bg-surface px-4 py-3">
       <div className="flex-1">
         <div className="flex items-center gap-2">
           <span className="font-medium text-text">{r.name as string}</span>
           {!!r.dosage && <span className="text-xs text-text-light">({r.dosage as string})</span>}
-          <Badge variant="warning">{goat.name} #{goat.tagId}</Badge>
+          <Badge variant="warning">{animal.name} #{animal.tagId}</Badge>
         </div>
         <div className="mt-1 flex gap-4 text-xs text-text-light">
           <span>Start: {formatDate(r.startDate as string)}</span>
@@ -244,13 +251,13 @@ function MedicationCard({ record: r, onDelete }: { record: Record<string, unknow
 }
 
 function VetVisitCard({ record: r, onDelete }: { record: Record<string, unknown>; onDelete: (id: string) => void }) {
-  const goat = r.goat as { name: string; tagId: string };
+  const animal = r.animal as { name: string; tagId: string };
   return (
     <div className="flex items-center justify-between rounded-xl border border-border bg-surface px-4 py-3">
       <div className="flex-1">
         <div className="flex items-center gap-2">
           <span className="font-medium text-text">{r.reason as string}</span>
-          <Badge variant="error">{goat.name} #{goat.tagId}</Badge>
+          <Badge variant="error">{animal.name} #{animal.tagId}</Badge>
           {!!r.cost && <span className="text-xs font-medium text-accent">{formatCurrency(r.cost as string)}</span>}
         </div>
         <div className="mt-1 flex gap-4 text-xs text-text-light">
@@ -266,13 +273,13 @@ function VetVisitCard({ record: r, onDelete }: { record: Record<string, unknown>
 }
 
 function DewormingCard({ record: r, onDelete }: { record: Record<string, unknown>; onDelete: (id: string) => void }) {
-  const goat = r.goat as { name: string; tagId: string };
+  const animal = r.animal as { name: string; tagId: string };
   return (
     <div className="flex items-center justify-between rounded-xl border border-border bg-surface px-4 py-3">
       <div className="flex-1">
         <div className="flex items-center gap-2">
           <span className="font-medium text-text">{r.productName as string}</span>
-          <Badge variant="success">{goat.name} #{goat.tagId}</Badge>
+          <Badge variant="success">{animal.name} #{animal.tagId}</Badge>
         </div>
         <div className="mt-1 flex gap-4 text-xs text-text-light">
           <span>Given: {formatDate(r.dateGiven as string)}</span>
@@ -288,13 +295,15 @@ function DewormingCard({ record: r, onDelete }: { record: Record<string, unknown
 // === Forms ===
 
 interface FormProps {
-  goats: GoatOption[];
+  config: AnimalConfig | null;
+  animals: AnimalOption[];
+  animalLabel: string;
   onSuccess: () => void;
   onCancel: () => void;
 }
 
-function VaccinationForm({ goats, onSuccess, onCancel }: FormProps) {
-  const [form, setForm] = useState({ goatId: "", name: "", dateGiven: "", nextDueDate: "", notes: "" });
+function VaccinationForm({ animals, animalLabel, onSuccess, onCancel }: FormProps) {
+  const [form, setForm] = useState({ animalId: "", name: "", dateGiven: "", nextDueDate: "", notes: "" });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -320,7 +329,7 @@ function VaccinationForm({ goats, onSuccess, onCancel }: FormProps) {
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       {error && <div className="rounded-lg bg-error/10 px-4 py-3 text-sm text-error">{error}</div>}
-      <Select id="vax-goat" label="Goat *" value={form.goatId} onChange={(e) => setForm({ ...form, goatId: e.target.value })} options={goats.map((g) => ({ value: g.id, label: `${g.name} (#${g.tagId})` }))} placeholder="Select goat" />
+      <Select id="vax-animal" label={`${animalLabel} *`} value={form.animalId} onChange={(e) => setForm({ ...form, animalId: e.target.value })} options={animals.map((a) => ({ value: a.id, label: `${a.name} (#${a.tagId})` }))} placeholder={`Select ${animalLabel.toLowerCase()}`} />
       <Input id="vax-name" label="Vaccine Name *" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="e.g. CDT" required />
       <div className="grid gap-4 sm:grid-cols-2">
         <Input id="vax-date" label="Date Given *" type="date" value={form.dateGiven} onChange={(e) => setForm({ ...form, dateGiven: e.target.value })} required />
@@ -335,8 +344,8 @@ function VaccinationForm({ goats, onSuccess, onCancel }: FormProps) {
   );
 }
 
-function MedicationForm({ goats, onSuccess, onCancel }: FormProps) {
-  const [form, setForm] = useState({ goatId: "", name: "", dosage: "", startDate: "", endDate: "", notes: "" });
+function MedicationForm({ animals, animalLabel, onSuccess, onCancel }: FormProps) {
+  const [form, setForm] = useState({ animalId: "", name: "", dosage: "", startDate: "", endDate: "", notes: "" });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -362,7 +371,7 @@ function MedicationForm({ goats, onSuccess, onCancel }: FormProps) {
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       {error && <div className="rounded-lg bg-error/10 px-4 py-3 text-sm text-error">{error}</div>}
-      <Select id="med-goat" label="Goat *" value={form.goatId} onChange={(e) => setForm({ ...form, goatId: e.target.value })} options={goats.map((g) => ({ value: g.id, label: `${g.name} (#${g.tagId})` }))} placeholder="Select goat" />
+      <Select id="med-animal" label={`${animalLabel} *`} value={form.animalId} onChange={(e) => setForm({ ...form, animalId: e.target.value })} options={animals.map((a) => ({ value: a.id, label: `${a.name} (#${a.tagId})` }))} placeholder={`Select ${animalLabel.toLowerCase()}`} />
       <div className="grid gap-4 sm:grid-cols-2">
         <Input id="med-name" label="Medication Name *" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="e.g. Penicillin" required />
         <Input id="med-dosage" label="Dosage" value={form.dosage} onChange={(e) => setForm({ ...form, dosage: e.target.value })} placeholder="e.g. 5ml" />
@@ -380,8 +389,8 @@ function MedicationForm({ goats, onSuccess, onCancel }: FormProps) {
   );
 }
 
-function VetVisitForm({ goats, onSuccess, onCancel }: FormProps) {
-  const [form, setForm] = useState({ goatId: "", date: "", reason: "", diagnosis: "", treatment: "", cost: "", vetName: "", notes: "" });
+function VetVisitForm({ animals, animalLabel, onSuccess, onCancel }: FormProps) {
+  const [form, setForm] = useState({ animalId: "", date: "", reason: "", diagnosis: "", treatment: "", cost: "", vetName: "", notes: "" });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -407,7 +416,7 @@ function VetVisitForm({ goats, onSuccess, onCancel }: FormProps) {
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       {error && <div className="rounded-lg bg-error/10 px-4 py-3 text-sm text-error">{error}</div>}
-      <Select id="vet-goat" label="Goat *" value={form.goatId} onChange={(e) => setForm({ ...form, goatId: e.target.value })} options={goats.map((g) => ({ value: g.id, label: `${g.name} (#${g.tagId})` }))} placeholder="Select goat" />
+      <Select id="vet-animal" label={`${animalLabel} *`} value={form.animalId} onChange={(e) => setForm({ ...form, animalId: e.target.value })} options={animals.map((a) => ({ value: a.id, label: `${a.name} (#${a.tagId})` }))} placeholder={`Select ${animalLabel.toLowerCase()}`} />
       <div className="grid gap-4 sm:grid-cols-2">
         <Input id="vet-date" label="Visit Date *" type="date" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} required />
         <Input id="vet-name" label="Vet Name" value={form.vetName} onChange={(e) => setForm({ ...form, vetName: e.target.value })} placeholder="Dr. Smith" />
@@ -427,8 +436,8 @@ function VetVisitForm({ goats, onSuccess, onCancel }: FormProps) {
   );
 }
 
-function DewormingForm({ goats, onSuccess, onCancel }: FormProps) {
-  const [form, setForm] = useState({ goatId: "", productName: "", dateGiven: "", nextDueDate: "", notes: "" });
+function DewormingForm({ animals, animalLabel, onSuccess, onCancel }: FormProps) {
+  const [form, setForm] = useState({ animalId: "", productName: "", dateGiven: "", nextDueDate: "", notes: "" });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -454,7 +463,7 @@ function DewormingForm({ goats, onSuccess, onCancel }: FormProps) {
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       {error && <div className="rounded-lg bg-error/10 px-4 py-3 text-sm text-error">{error}</div>}
-      <Select id="dew-goat" label="Goat *" value={form.goatId} onChange={(e) => setForm({ ...form, goatId: e.target.value })} options={goats.map((g) => ({ value: g.id, label: `${g.name} (#${g.tagId})` }))} placeholder="Select goat" />
+      <Select id="dew-animal" label={`${animalLabel} *`} value={form.animalId} onChange={(e) => setForm({ ...form, animalId: e.target.value })} options={animals.map((a) => ({ value: a.id, label: `${a.name} (#${a.tagId})` }))} placeholder={`Select ${animalLabel.toLowerCase()}`} />
       <Input id="dew-product" label="Product Name *" value={form.productName} onChange={(e) => setForm({ ...form, productName: e.target.value })} placeholder="e.g. Ivermectin" required />
       <div className="grid gap-4 sm:grid-cols-2">
         <Input id="dew-date" label="Date Given *" type="date" value={form.dateGiven} onChange={(e) => setForm({ ...form, dateGiven: e.target.value })} required />
@@ -469,37 +478,38 @@ function DewormingForm({ goats, onSuccess, onCancel }: FormProps) {
   );
 }
 
-// === Bulk Goat Selector ===
+// === Bulk Animal Selector ===
 
-function GoatCheckboxList({ goats, selected, onChange }: {
-  goats: GoatOption[];
+function AnimalCheckboxList({ animals, animalsLabel, selected, onChange }: {
+  animals: AnimalOption[];
+  animalsLabel: string;
   selected: string[];
   onChange: (ids: string[]) => void;
 }) {
-  const allSelected = selected.length === goats.length;
-  const toggleAll = () => onChange(allSelected ? [] : goats.map((g) => g.id));
+  const allSelected = selected.length === animals.length;
+  const toggleAll = () => onChange(allSelected ? [] : animals.map((a) => a.id));
   const toggle = (id: string) =>
     onChange(selected.includes(id) ? selected.filter((s) => s !== id) : [...selected, id]);
 
   return (
     <div>
       <div className="mb-1 flex items-center justify-between">
-        <label className="text-sm font-medium text-text">Goats * <span className="text-text-light">({selected.length} selected)</span></label>
+        <label className="text-sm font-medium text-text capitalize">{animalsLabel} * <span className="text-text-light">({selected.length} selected)</span></label>
         <button type="button" onClick={toggleAll} className="text-xs font-medium text-primary hover:underline">
           {allSelected ? "Deselect All" : "Select All"}
         </button>
       </div>
       <div className="max-h-48 overflow-y-auto rounded-lg border border-border bg-surface p-2 space-y-1">
-        {goats.map((g) => (
-          <label key={g.id} className="flex cursor-pointer items-center gap-2 rounded px-2 py-1 hover:bg-background">
+        {animals.map((a) => (
+          <label key={a.id} className="flex cursor-pointer items-center gap-2 rounded px-2 py-1 hover:bg-background">
             <input
               type="checkbox"
-              checked={selected.includes(g.id)}
-              onChange={() => toggle(g.id)}
+              checked={selected.includes(a.id)}
+              onChange={() => toggle(a.id)}
               className="accent-primary"
             />
-            <span className="text-sm text-text">{g.name}</span>
-            <span className="text-xs text-text-light">#{g.tagId}</span>
+            <span className="text-sm text-text">{a.name}</span>
+            <span className="text-xs text-text-light">#{a.tagId}</span>
           </label>
         ))}
       </div>
@@ -509,25 +519,33 @@ function GoatCheckboxList({ goats, selected, onChange }: {
 
 // === Bulk Forms ===
 
-function BulkVaccinationForm({ goats, onSuccess, onCancel }: FormProps) {
-  const [selectedGoatIds, setSelectedGoatIds] = useState<string[]>([]);
+interface BulkFormProps {
+  config: AnimalConfig | null;
+  animals: AnimalOption[];
+  animalsLabel: string;
+  onSuccess: () => void;
+  onCancel: () => void;
+}
+
+function BulkVaccinationForm({ animals, animalsLabel, onSuccess, onCancel }: BulkFormProps) {
+  const [selectedAnimalIds, setSelectedAnimalIds] = useState<string[]>([]);
   const [form, setForm] = useState({ name: "", dateGiven: "", nextDueDate: "", notes: "" });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (selectedGoatIds.length === 0) { setError("Select at least one goat."); return; }
+    if (selectedAnimalIds.length === 0) { setError(`Select at least one ${animalsLabel.slice(0, -1) || "animal"}.`); return; }
     if (!form.name || !form.dateGiven) { setError("Vaccine name and date given are required."); return; }
     setLoading(true);
     setError("");
     try {
       const results = await Promise.allSettled(
-        selectedGoatIds.map((goatId) =>
+        selectedAnimalIds.map((animalId) =>
           fetch("/api/health/vaccinations", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ ...form, goatId }),
+            body: JSON.stringify({ ...form, animalId }),
           })
         )
       );
@@ -544,7 +562,7 @@ function BulkVaccinationForm({ goats, onSuccess, onCancel }: FormProps) {
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       {error && <div className="rounded-lg bg-error/10 px-4 py-3 text-sm text-error">{error}</div>}
-      <GoatCheckboxList goats={goats} selected={selectedGoatIds} onChange={setSelectedGoatIds} />
+      <AnimalCheckboxList animals={animals} animalsLabel={animalsLabel} selected={selectedAnimalIds} onChange={setSelectedAnimalIds} />
       <Input id="bulk-vax-name" label="Vaccine Name *" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="e.g. CDT" />
       <div className="grid gap-4 sm:grid-cols-2">
         <Input id="bulk-vax-date" label="Date Given *" type="date" value={form.dateGiven} onChange={(e) => setForm({ ...form, dateGiven: e.target.value })} />
@@ -554,32 +572,32 @@ function BulkVaccinationForm({ goats, onSuccess, onCancel }: FormProps) {
       <div className="flex justify-end gap-3">
         <Button type="button" variant="outline" onClick={onCancel}>Cancel</Button>
         <Button type="submit" loading={loading}>
-          Save {selectedGoatIds.length > 0 ? `(${selectedGoatIds.length} goats)` : ""}
+          Save {selectedAnimalIds.length > 0 ? `(${selectedAnimalIds.length} ${animalsLabel})` : ""}
         </Button>
       </div>
     </form>
   );
 }
 
-function BulkDewormingForm({ goats, onSuccess, onCancel }: FormProps) {
-  const [selectedGoatIds, setSelectedGoatIds] = useState<string[]>([]);
+function BulkDewormingForm({ animals, animalsLabel, onSuccess, onCancel }: BulkFormProps) {
+  const [selectedAnimalIds, setSelectedAnimalIds] = useState<string[]>([]);
   const [form, setForm] = useState({ productName: "", dateGiven: "", nextDueDate: "", notes: "" });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (selectedGoatIds.length === 0) { setError("Select at least one goat."); return; }
+    if (selectedAnimalIds.length === 0) { setError(`Select at least one ${animalsLabel.slice(0, -1) || "animal"}.`); return; }
     if (!form.productName || !form.dateGiven) { setError("Product name and date given are required."); return; }
     setLoading(true);
     setError("");
     try {
       const results = await Promise.allSettled(
-        selectedGoatIds.map((goatId) =>
+        selectedAnimalIds.map((animalId) =>
           fetch("/api/health/dewormings", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ ...form, goatId }),
+            body: JSON.stringify({ ...form, animalId }),
           })
         )
       );
@@ -596,7 +614,7 @@ function BulkDewormingForm({ goats, onSuccess, onCancel }: FormProps) {
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       {error && <div className="rounded-lg bg-error/10 px-4 py-3 text-sm text-error">{error}</div>}
-      <GoatCheckboxList goats={goats} selected={selectedGoatIds} onChange={setSelectedGoatIds} />
+      <AnimalCheckboxList animals={animals} animalsLabel={animalsLabel} selected={selectedAnimalIds} onChange={setSelectedAnimalIds} />
       <Input id="bulk-dew-product" label="Product Name *" value={form.productName} onChange={(e) => setForm({ ...form, productName: e.target.value })} placeholder="e.g. Ivermectin" />
       <div className="grid gap-4 sm:grid-cols-2">
         <Input id="bulk-dew-date" label="Date Given *" type="date" value={form.dateGiven} onChange={(e) => setForm({ ...form, dateGiven: e.target.value })} />
@@ -606,7 +624,7 @@ function BulkDewormingForm({ goats, onSuccess, onCancel }: FormProps) {
       <div className="flex justify-end gap-3">
         <Button type="button" variant="outline" onClick={onCancel}>Cancel</Button>
         <Button type="submit" loading={loading}>
-          Save {selectedGoatIds.length > 0 ? `(${selectedGoatIds.length} goats)` : ""}
+          Save {selectedAnimalIds.length > 0 ? `(${selectedAnimalIds.length} ${animalsLabel})` : ""}
         </Button>
       </div>
     </form>

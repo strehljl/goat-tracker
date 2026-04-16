@@ -10,7 +10,7 @@ export async function GET() {
   try {
     const sales = await prisma.sale.findMany({
       where: { farmId },
-      include: { goat: { select: { id: true, name: true, tagId: true } } },
+      include: { animal: { select: { id: true, name: true, tagId: true } } },
       orderBy: { saleDate: "desc" },
     });
     return NextResponse.json(sales);
@@ -26,35 +26,35 @@ export async function POST(request: NextRequest) {
   const { farmId } = auth;
 
   try {
-    const { goatId, saleDate, salePrice, buyerName, buyerContact, notes } = await request.json();
+    const { animalId, saleDate, salePrice, buyerName, buyerContact, notes } = await request.json();
 
-    if (!goatId || !saleDate || !salePrice) {
-      return NextResponse.json({ error: "Goat, date, and price are required" }, { status: 400 });
+    if (!animalId || !saleDate || !salePrice) {
+      return NextResponse.json({ error: "Animal, date, and price are required" }, { status: 400 });
     }
 
-    // Verify goat belongs to this farm
-    const goat = await prisma.goat.findFirst({ where: { id: goatId, farmId } });
-    if (!goat) {
-      return NextResponse.json({ error: "Goat not found" }, { status: 404 });
+    // Verify animal belongs to this farm
+    const animal = await prisma.animal.findFirst({ where: { id: animalId, farmId } });
+    if (!animal) {
+      return NextResponse.json({ error: "Animal not found" }, { status: 404 });
     }
 
-    // Create sale and update goat status in a transaction
+    // Create sale and update animal status in a transaction
     const result = await prisma.$transaction(async (tx) => {
       const sale = await tx.sale.create({
         data: {
           farmId,
-          goatId,
+          animalId,
           saleDate: new Date(saleDate),
           salePrice: parseFloat(salePrice),
           buyerName: buyerName || null,
           buyerContact: buyerContact || null,
           notes: notes || null,
         },
-        include: { goat: { select: { id: true, name: true, tagId: true } } },
+        include: { animal: { select: { id: true, name: true, tagId: true } } },
       });
 
-      await tx.goat.update({
-        where: { id: goatId },
+      await tx.animal.update({
+        where: { id: animalId },
         data: { status: "SOLD" },
       });
 

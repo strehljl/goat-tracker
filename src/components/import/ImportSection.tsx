@@ -4,12 +4,11 @@ import { useRef, useState } from "react";
 import Button from "@/components/ui/Button";
 import Card, { CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
 import Badge from "@/components/ui/Badge";
-import { parseCSV, validateAndNormalize, ParsedImportRow, GoatImportRow } from "@/lib/csvParser";
+import { parseCSV, validateAndNormalize, ParsedImportRow, AnimalImportRow } from "@/lib/csvParser";
+import { AnimalConfig } from "@/lib/animalConfig";
 
 const TEMPLATE_HEADERS =
   "name,tagId,gender,breed,dateOfBirth,colorMarkings,purchaseDate,purchasePrice,damTagId,sireTagId,location,status,notes";
-const TEMPLATE_EXAMPLE =
-  "Daisy,GT-001,DOE,Nubian,2022-03-15,Brown with white ears,2022-04-01,250.00,,,Pen 1,ACTIVE,First goat";
 
 type ImportPhase = "idle" | "previewing" | "importing" | "done";
 
@@ -34,7 +33,12 @@ const COLUMNS = [
   { key: "notes", label: "Notes" },
 ] as const;
 
-export default function ImportSection() {
+interface ImportSectionProps {
+  config: AnimalConfig;
+  herdId?: string;
+}
+
+export default function ImportSection({ config, herdId }: ImportSectionProps) {
   const [phase, setPhase] = useState<ImportPhase>("idle");
   const [parsedRows, setParsedRows] = useState<ParsedImportRow[]>([]);
   const [importResult, setImportResult] = useState<ImportResult | null>(null);
@@ -46,12 +50,13 @@ export default function ImportSection() {
   const errorRows = parsedRows.filter((r) => r.errors.length > 0);
 
   function handleDownloadTemplate() {
-    const csv = [TEMPLATE_HEADERS, TEMPLATE_EXAMPLE].join("\n");
+    const exampleRow = `Daisy,${config.tagIdPlaceholder.replace("e.g. ", "")},FEMALE,${config.breedPlaceholder.replace("e.g. ", "")},2022-03-15,Brown with white ears,2022-04-01,250.00,,,Pen 1,ACTIVE,First ${config.singular}`;
+    const csv = [TEMPLATE_HEADERS, exampleRow].join("\n");
     const blob = new Blob([csv], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = "goat-import-template.csv";
+    a.download = `${config.exportPrefix}-import-template.csv`;
     document.body.appendChild(a);
     a.click();
     URL.revokeObjectURL(url);
@@ -78,9 +83,10 @@ export default function ImportSection() {
       }
 
       // Fetch existing tagIds to check for duplicates
-      const res = await fetch("/api/goats");
-      const existingGoats: { tagId: string }[] = res.ok ? await res.json() : [];
-      const existingTagIds = new Set(existingGoats.map((g) => g.tagId));
+      const herdParam = herdId ? `?herdId=${herdId}` : "";
+      const res = await fetch(`/api/animals${herdParam}`);
+      const existingAnimals: { tagId: string }[] = res.ok ? await res.json() : [];
+      const existingTagIds = new Set(existingAnimals.map((a) => a.tagId));
 
       const validated = validateAndNormalize(rawRows, existingTagIds);
       setParsedRows(validated);
@@ -95,14 +101,14 @@ export default function ImportSection() {
   }
 
   async function handleImport() {
-    const rowsToImport: GoatImportRow[] = validRows.map((r) => r.data);
+    const rowsToImport: AnimalImportRow[] = validRows.map((r) => r.data);
     setPhase("importing");
 
     try {
       const res = await fetch("/api/import", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ goats: rowsToImport }),
+        body: JSON.stringify({ animals: rowsToImport, herdId: herdId ?? null }),
       });
 
       const result = await res.json();
@@ -131,15 +137,18 @@ export default function ImportSection() {
     <div className="mt-6">
       <Card>
         <CardHeader>
-          <CardTitle>Import Goats from CSV</CardTitle>
+          <CardTitle>Import {config.pluralCapitalized} from CSV</CardTitle>
         </CardHeader>
         <CardContent>
           {/* Idle phase */}
           {phase === "idle" && (
             <div>
               <p className="mb-4 text-sm text-text-light">
-                Upload a CSV file to bulk-import goats into your herd. Download the template below
-                to see the required format.
+                Upload a CSV file to bulk-import {config.plural} into your herd. Download the
+                template below to see the required format. Gender values must be{" "}
+                <code className="rounded bg-surface-alt px-1 text-xs">FEMALE</code>,{" "}
+                <code className="rounded bg-surface-alt px-1 text-xs">MALE</code>, or{" "}
+                <code className="rounded bg-surface-alt px-1 text-xs">NEUTERED_MALE</code>.
               </p>
               <div className="flex flex-wrap items-center gap-3">
                 <Button variant="outline" onClick={handleDownloadTemplate}>
@@ -311,7 +320,7 @@ export default function ImportSection() {
                   d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
                 />
               </svg>
-              <p className="text-sm text-text-light">Importing goats...</p>
+              <p className="text-sm text-text-light">Importing {config.plural}...</p>
             </div>
           )}
 
@@ -322,7 +331,7 @@ export default function ImportSection() {
                 <div className="mb-4 rounded-lg border border-success/30 bg-success/10 px-4 py-3">
                   <p className="text-sm font-medium text-success">
                     Successfully imported {importResult.imported}{" "}
-                    {importResult.imported === 1 ? "goat" : "goats"}
+                    {importResult.imported === 1 ? config.singular : config.plural}
                   </p>
                 </div>
               )}

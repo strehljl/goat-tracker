@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireFarm } from "@/lib/farmAuth";
-import { Gender, GoatStatus } from "@prisma/client";
+import { AnimalGender, AnimalStatus } from "@prisma/client";
 
-interface GoatImportRow {
+interface AnimalImportRow {
   name: string;
   tagId: string;
   gender: string;
@@ -20,10 +20,11 @@ interface GoatImportRow {
 }
 
 interface ImportRequestBody {
-  goats: GoatImportRow[];
+  animals: AnimalImportRow[];
+  herdId?: string;
 }
 
-const VALID_GENDERS = new Set(["DOE", "BUCK", "WETHER"]);
+const VALID_GENDERS = new Set(["FEMALE", "MALE", "NEUTERED_MALE"]);
 const VALID_STATUSES = new Set(["ACTIVE", "SOLD", "DECEASED"]);
 
 export async function POST(request: NextRequest) {
@@ -38,26 +39,34 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
   }
 
-  const { goats } = body;
-  if (!Array.isArray(goats) || goats.length === 0) {
-    return NextResponse.json({ error: "No goats provided" }, { status: 400 });
+  const { animals, herdId } = body;
+  if (!Array.isArray(animals) || animals.length === 0) {
+    return NextResponse.json({ error: "No animals provided" }, { status: 400 });
   }
-  if (goats.length > 1000) {
-    return NextResponse.json({ error: "Cannot import more than 1000 goats at once" }, { status: 400 });
+  if (animals.length > 1000) {
+    return NextResponse.json({ error: "Cannot import more than 1000 animals at once" }, { status: 400 });
+  }
+
+  // Validate herdId if provided
+  if (herdId) {
+    const herd = await prisma.herd.findFirst({ where: { id: herdId, farmId } });
+    if (!herd) {
+      return NextResponse.json({ error: "Herd not found" }, { status: 404 });
+    }
   }
 
   // Server-side re-validation
   const validationErrors: string[] = [];
-  for (let i = 0; i < goats.length; i++) {
-    const g = goats[i];
-    const label = `Row ${i + 1} (${g.tagId ?? "no tag"})`;
-    if (!g.name?.trim()) validationErrors.push(`${label}: name is required`);
-    if (!g.tagId?.trim()) validationErrors.push(`${label}: tagId is required`);
-    if (!VALID_GENDERS.has(g.gender?.toUpperCase?.())) {
-      validationErrors.push(`${label}: invalid gender "${g.gender}"`);
+  for (let i = 0; i < animals.length; i++) {
+    const a = animals[i];
+    const label = `Row ${i + 1} (${a.tagId ?? "no tag"})`;
+    if (!a.name?.trim()) validationErrors.push(`${label}: name is required`);
+    if (!a.tagId?.trim()) validationErrors.push(`${label}: tagId is required`);
+    if (!VALID_GENDERS.has(a.gender?.toUpperCase?.())) {
+      validationErrors.push(`${label}: invalid gender "${a.gender}" (must be FEMALE, MALE, or NEUTERED_MALE)`);
     }
-    if (g.status && !VALID_STATUSES.has(g.status?.toUpperCase?.())) {
-      validationErrors.push(`${label}: invalid status "${g.status}"`);
+    if (a.status && !VALID_STATUSES.has(a.status?.toUpperCase?.())) {
+      validationErrors.push(`${label}: invalid status "${a.status}"`);
     }
   }
 
@@ -72,8 +81,8 @@ export async function POST(request: NextRequest) {
     // Resolve location names -> locationIds (create new ones as needed)
     const locationNameToId = new Map<string, string>();
     const locationNames = new Set<string>();
-    for (const g of goats) {
-      if (g.location?.trim()) locationNames.add(g.location.trim());
+    for (const a of animals) {
+      if (a.location?.trim()) locationNames.add(a.location.trim());
     }
     if (locationNames.size > 0) {
       const existingLocations = await prisma.farmLocation.findMany({
@@ -83,7 +92,6 @@ export async function POST(request: NextRequest) {
       for (const loc of existingLocations) {
         locationNameToId.set(loc.name, loc.id);
       }
-      // Create any new location names not already in DB
       for (const name of locationNames) {
         if (!locationNameToId.has(name)) {
           const created = await prisma.farmLocation.create({
@@ -97,13 +105,13 @@ export async function POST(request: NextRequest) {
 
     // Collect all tagIds referenced as dam/sire
     const referencedTagIds = new Set<string>();
-    for (const g of goats) {
-      if (g.damTagId?.trim()) referencedTagIds.add(g.damTagId.trim());
-      if (g.sireTagId?.trim()) referencedTagIds.add(g.sireTagId.trim());
+    for (const a of animals) {
+      if (a.damTagId?.trim()) referencedTagIds.add(a.damTagId.trim());
+      if (a.sireTagId?.trim()) referencedTagIds.add(a.sireTagId.trim());
     }
 
     // Fetch pre-existing parents from DB (scoped to this farm)
-    const existingParents = await prisma.goat.findMany({
+    const existingParents = await prisma.animal.findMany({
       where: { farmId, tagId: { in: Array.from(referencedTagIds) } },
       select: { id: true, tagId: true },
     });
@@ -114,30 +122,31 @@ export async function POST(request: NextRequest) {
       tagIdToDbId.set(p.tagId, p.id);
     }
 
-    // Pass 1: Insert all goats without dam/sire links
+    // Pass 1: Insert all animals without dam/sire links
     let imported = 0;
     const insertErrors: string[] = [];
 
-    for (const g of goats) {
+    for (const a of animals) {
       try {
-        const locationId = g.location?.trim()
-          ? (locationNameToId.get(g.location.trim()) ?? null)
+        const locationId = a.location?.trim()
+          ? (locationNameToId.get(a.location.trim()) ?? null)
           : null;
 
-        const created = await prisma.goat.create({
+        const created = await prisma.animal.create({
           data: {
             farmId,
-            name: g.name.trim(),
-            tagId: g.tagId.trim(),
-            gender: g.gender.toUpperCase() as Gender,
-            breed: g.breed?.trim() || null,
-            dateOfBirth: g.dateOfBirth ? new Date(g.dateOfBirth) : null,
-            colorMarkings: g.colorMarkings?.trim() || null,
-            purchaseDate: g.purchaseDate ? new Date(g.purchaseDate) : null,
-            purchasePrice: g.purchasePrice != null ? g.purchasePrice : null,
+            herdId: herdId || null,
+            name: a.name.trim(),
+            tagId: a.tagId.trim(),
+            gender: a.gender.toUpperCase() as AnimalGender,
+            breed: a.breed?.trim() || null,
+            dateOfBirth: a.dateOfBirth ? new Date(a.dateOfBirth) : null,
+            colorMarkings: a.colorMarkings?.trim() || null,
+            purchaseDate: a.purchaseDate ? new Date(a.purchaseDate) : null,
+            purchasePrice: a.purchasePrice != null ? a.purchasePrice : null,
             locationId,
-            status: (g.status?.toUpperCase() as GoatStatus) ?? GoatStatus.ACTIVE,
-            notes: g.notes?.trim() || null,
+            status: (a.status?.toUpperCase() as AnimalStatus) ?? AnimalStatus.ACTIVE,
+            notes: a.notes?.trim() || null,
           },
           select: { id: true, tagId: true },
         });
@@ -145,18 +154,18 @@ export async function POST(request: NextRequest) {
         imported++;
       } catch (err) {
         const msg = err instanceof Error ? err.message : "unknown error";
-        insertErrors.push(`Failed to insert "${g.tagId}": ${msg}`);
+        insertErrors.push(`Failed to insert "${a.tagId}": ${msg}`);
       }
     }
 
     // Pass 2: Update lineage links
-    for (const g of goats) {
-      const damTagId = g.damTagId?.trim();
-      const sireTagId = g.sireTagId?.trim();
+    for (const a of animals) {
+      const damTagId = a.damTagId?.trim();
+      const sireTagId = a.sireTagId?.trim();
       if (!damTagId && !sireTagId) continue;
 
-      const goatDbId = tagIdToDbId.get(g.tagId.trim());
-      if (!goatDbId) continue; // failed to insert in pass 1
+      const animalDbId = tagIdToDbId.get(a.tagId.trim());
+      if (!animalDbId) continue; // failed to insert in pass 1
 
       const updateData: { damId?: string; sireId?: string } = {};
 
@@ -166,7 +175,7 @@ export async function POST(request: NextRequest) {
           updateData.damId = damId;
         } else {
           insertErrors.push(
-            `Could not resolve damTagId "${damTagId}" for goat "${g.tagId}" -- parent not found`
+            `Could not resolve damTagId "${damTagId}" for animal "${a.tagId}" -- parent not found`
           );
         }
       }
@@ -177,20 +186,20 @@ export async function POST(request: NextRequest) {
           updateData.sireId = sireId;
         } else {
           insertErrors.push(
-            `Could not resolve sireTagId "${sireTagId}" for goat "${g.tagId}" -- parent not found`
+            `Could not resolve sireTagId "${sireTagId}" for animal "${a.tagId}" -- parent not found`
           );
         }
       }
 
       if (Object.keys(updateData).length > 0) {
         try {
-          await prisma.goat.update({
-            where: { id: goatDbId },
+          await prisma.animal.update({
+            where: { id: animalDbId },
             data: updateData,
           });
         } catch (err) {
           const msg = err instanceof Error ? err.message : "unknown error";
-          insertErrors.push(`Failed to link lineage for "${g.tagId}": ${msg}`);
+          insertErrors.push(`Failed to link lineage for "${a.tagId}": ${msg}`);
         }
       }
     }

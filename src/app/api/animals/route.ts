@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireFarm } from "@/lib/farmAuth";
 
-// GET /api/goats - List all goats with optional filters
+// GET /api/animals — list animals with optional filters
 export async function GET(request: NextRequest) {
   const auth = await requireFarm();
   if (auth instanceof NextResponse) return auth;
@@ -13,9 +13,14 @@ export async function GET(request: NextRequest) {
   const status = searchParams.get("status") || "";
   const gender = searchParams.get("gender") || "";
   const locationId = searchParams.get("locationId") || "";
+  const herdId = searchParams.get("herdId") || "";
   const bornThisYear = searchParams.get("bornThisYear") === "true";
 
   const where: Record<string, unknown> = { farmId };
+
+  if (herdId) {
+    where.herdId = herdId;
+  }
 
   if (search) {
     where.OR = [
@@ -25,17 +30,9 @@ export async function GET(request: NextRequest) {
     ];
   }
 
-  if (status) {
-    where.status = status;
-  }
-
-  if (gender) {
-    where.gender = gender;
-  }
-
-  if (locationId) {
-    where.locationId = locationId;
-  }
+  if (status) where.status = status;
+  if (gender) where.gender = gender;
+  if (locationId) where.locationId = locationId;
 
   if (bornThisYear) {
     const start = new Date(new Date().getFullYear(), 0, 1);
@@ -44,28 +41,25 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const goats = await prisma.goat.findMany({
+    const animals = await prisma.animal.findMany({
       where,
       include: {
         dam: { select: { id: true, name: true, tagId: true } },
         sire: { select: { id: true, name: true, tagId: true } },
         location: { select: { id: true, name: true } },
+        herd: { select: { id: true, name: true, animalType: true } },
         sale: { select: { saleDate: true } },
       },
       orderBy: { name: "asc" },
     });
-
-    return NextResponse.json(goats);
+    return NextResponse.json(animals);
   } catch (error) {
-    console.error("Error fetching goats:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch goats" },
-      { status: 500 }
-    );
+    console.error("Error fetching animals:", error);
+    return NextResponse.json({ error: "Failed to fetch animals" }, { status: 500 });
   }
 }
 
-// POST /api/goats - Create a new goat
+// POST /api/animals — create a new animal
 export async function POST(request: NextRequest) {
   const auth = await requireFarm();
   if (auth instanceof NextResponse) return auth;
@@ -86,6 +80,7 @@ export async function POST(request: NextRequest) {
       damId,
       sireId,
       locationId: bodyLocationId,
+      herdId,
       status,
       notes,
     } = body;
@@ -97,17 +92,18 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const existing = await prisma.goat.findFirst({ where: { tagId, farmId } });
+    const existing = await prisma.animal.findFirst({ where: { tagId, farmId } });
     if (existing) {
       return NextResponse.json(
-        { error: "A goat with this tag ID already exists" },
+        { error: "An animal with this tag ID already exists" },
         { status: 409 }
       );
     }
 
-    const goat = await prisma.goat.create({
+    const animal = await prisma.animal.create({
       data: {
         farmId,
+        herdId: herdId || null,
         name,
         tagId,
         breed: breed || null,
@@ -127,16 +123,14 @@ export async function POST(request: NextRequest) {
         dam: { select: { id: true, name: true, tagId: true } },
         sire: { select: { id: true, name: true, tagId: true } },
         location: { select: { id: true, name: true } },
+        herd: { select: { id: true, name: true, animalType: true } },
         sale: { select: { saleDate: true } },
       },
     });
 
-    return NextResponse.json(goat, { status: 201 });
+    return NextResponse.json(animal, { status: 201 });
   } catch (error) {
-    console.error("Error creating goat:", error);
-    return NextResponse.json(
-      { error: "Failed to create goat" },
-      { status: 500 }
-    );
+    console.error("Error creating animal:", error);
+    return NextResponse.json({ error: "Failed to create animal" }, { status: 500 });
   }
 }

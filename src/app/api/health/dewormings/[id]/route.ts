@@ -17,17 +17,17 @@ export async function PUT(
       return NextResponse.json({ error: "Deworming not found" }, { status: 404 });
     }
 
-    const { goatId, productName, dateGiven, nextDueDate, notes } = await request.json();
+    const { animalId, productName, dateGiven, nextDueDate, notes } = await request.json();
 
-    const goat = await prisma.goat.findFirst({ where: { id: goatId, farmId } });
-    if (!goat) {
-      return NextResponse.json({ error: "Goat not found" }, { status: 404 });
+    const animal = await prisma.animal.findFirst({ where: { id: animalId, farmId } });
+    if (!animal) {
+      return NextResponse.json({ error: "Animal not found" }, { status: 404 });
     }
 
     const deworming = await prisma.deworming.update({
       where: { id },
       data: {
-        goatId,
+        animalId,
         productName,
         dateGiven: new Date(dateGiven),
         nextDueDate: nextDueDate ? new Date(nextDueDate) : null,

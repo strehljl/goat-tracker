@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireFarm } from "@/lib/farmAuth";
 
-// GET /api/goats/[id] - Get single goat with all relations
+// GET /api/animals/[id]
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -14,12 +14,13 @@ export async function GET(
   const { id } = await params;
 
   try {
-    const goat = await prisma.goat.findFirst({
+    const animal = await prisma.animal.findFirst({
       where: { id, farmId },
       include: {
         dam: { select: { id: true, name: true, tagId: true, photoUrl: true } },
         sire: { select: { id: true, name: true, tagId: true, photoUrl: true } },
         location: { select: { id: true, name: true } },
+        herd: { select: { id: true, name: true, animalType: true } },
         damOffspring: {
           select: { id: true, name: true, tagId: true, gender: true, dateOfBirth: true, status: true, photoUrl: true },
           orderBy: { dateOfBirth: "desc" },
@@ -35,18 +36,18 @@ export async function GET(
         vetVisits: { orderBy: { date: "desc" }, take: 5 },
         dewormings: { orderBy: { dateGiven: "desc" }, take: 5 },
         healthNotes: { orderBy: { date: "desc" }, take: 5 },
-        breedingAsDoe: {
+        breedingAsFemale: {
           include: {
-            buck: { select: { id: true, name: true, tagId: true } },
-            kiddingRecord: { include: { kids: true } },
+            parentMale: { select: { id: true, name: true, tagId: true } },
+            birthRecord: { include: { offspring: true } },
           },
           orderBy: { breedingDate: "desc" },
           take: 5,
         },
-        breedingAsBuck: {
+        breedingAsMale: {
           include: {
-            doe: { select: { id: true, name: true, tagId: true } },
-            kiddingRecord: { include: { kids: true } },
+            parentFemale: { select: { id: true, name: true, tagId: true } },
+            birthRecord: { include: { offspring: true } },
           },
           orderBy: { breedingDate: "desc" },
           take: 5,
@@ -56,21 +57,18 @@ export async function GET(
       },
     });
 
-    if (!goat) {
-      return NextResponse.json({ error: "Goat not found" }, { status: 404 });
+    if (!animal) {
+      return NextResponse.json({ error: "Animal not found" }, { status: 404 });
     }
 
-    return NextResponse.json(goat);
+    return NextResponse.json(animal);
   } catch (error) {
-    console.error("Error fetching goat:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch goat" },
-      { status: 500 }
-    );
+    console.error("Error fetching animal:", error);
+    return NextResponse.json({ error: "Failed to fetch animal" }, { status: 500 });
   }
 }
 
-// PUT /api/goats/[id] - Update a goat
+// PUT /api/animals/[id]
 export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -96,6 +94,7 @@ export async function PUT(
       damId,
       sireId,
       locationId: bodyLocationId,
+      herdId,
       status,
       notes,
     } = body;
@@ -107,38 +106,31 @@ export async function PUT(
       );
     }
 
-    // Verify ownership
-    const owned = await prisma.goat.findFirst({ where: { id, farmId } });
+    const owned = await prisma.animal.findFirst({ where: { id, farmId } });
     if (!owned) {
-      return NextResponse.json({ error: "Goat not found" }, { status: 404 });
+      return NextResponse.json({ error: "Animal not found" }, { status: 404 });
     }
 
-    // Check for duplicate tagId (excluding current goat, within same farm)
-    const existing = await prisma.goat.findFirst({
+    const existing = await prisma.animal.findFirst({
       where: { tagId, farmId, id: { not: id } },
     });
     if (existing) {
       return NextResponse.json(
-        { error: "A goat with this tag ID already exists" },
+        { error: "An animal with this tag ID already exists" },
         { status: 409 }
       );
     }
 
-    // Verify dam and sire belong to the same farm
     if (damId) {
-      const dam = await prisma.goat.findFirst({ where: { id: damId, farmId } });
-      if (!dam) {
-        return NextResponse.json({ error: "Dam not found" }, { status: 404 });
-      }
+      const dam = await prisma.animal.findFirst({ where: { id: damId, farmId } });
+      if (!dam) return NextResponse.json({ error: "Dam not found" }, { status: 404 });
     }
     if (sireId) {
-      const sire = await prisma.goat.findFirst({ where: { id: sireId, farmId } });
-      if (!sire) {
-        return NextResponse.json({ error: "Sire not found" }, { status: 404 });
-      }
+      const sire = await prisma.animal.findFirst({ where: { id: sireId, farmId } });
+      if (!sire) return NextResponse.json({ error: "Sire not found" }, { status: 404 });
     }
 
-    const goat = await prisma.goat.update({
+    const animal = await prisma.animal.update({
       where: { id },
       data: {
         name,
@@ -153,6 +145,7 @@ export async function PUT(
         damId: damId || null,
         sireId: sireId || null,
         locationId: bodyLocationId || null,
+        herdId: herdId || null,
         status: status || "ACTIVE",
         notes: notes || null,
       },
@@ -160,20 +153,18 @@ export async function PUT(
         dam: { select: { id: true, name: true, tagId: true } },
         sire: { select: { id: true, name: true, tagId: true } },
         location: { select: { id: true, name: true } },
+        herd: { select: { id: true, name: true, animalType: true } },
       },
     });
 
-    return NextResponse.json(goat);
+    return NextResponse.json(animal);
   } catch (error) {
-    console.error("Error updating goat:", error);
-    return NextResponse.json(
-      { error: "Failed to update goat" },
-      { status: 500 }
-    );
+    console.error("Error updating animal:", error);
+    return NextResponse.json({ error: "Failed to update animal" }, { status: 500 });
   }
 }
 
-// DELETE /api/goats/[id] - Delete a goat
+// DELETE /api/animals/[id]
 export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -185,18 +176,15 @@ export async function DELETE(
   const { id } = await params;
 
   try {
-    const owned = await prisma.goat.findFirst({ where: { id, farmId } });
+    const owned = await prisma.animal.findFirst({ where: { id, farmId } });
     if (!owned) {
-      return NextResponse.json({ error: "Goat not found" }, { status: 404 });
+      return NextResponse.json({ error: "Animal not found" }, { status: 404 });
     }
 
-    await prisma.goat.delete({ where: { id } });
+    await prisma.animal.delete({ where: { id } });
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error("Error deleting goat:", error);
-    return NextResponse.json(
-      { error: "Failed to delete goat" },
-      { status: 500 }
-    );
+    console.error("Error deleting animal:", error);
+    return NextResponse.json({ error: "Failed to delete animal" }, { status: 500 });
   }
 }
