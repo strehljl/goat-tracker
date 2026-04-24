@@ -10,6 +10,7 @@ import TextArea from "@/components/ui/TextArea";
 import { SkeletonTable } from "@/components/ui/Skeleton";
 import { useFarm } from "@/components/providers/FarmProvider";
 import { AnimalConfig } from "@/lib/animalConfig";
+import { sortByTagThenName } from "@/lib/sortAnimals";
 
 interface AnimalOption { id: string; name: string; tagId: string; gender: string }
 
@@ -53,7 +54,7 @@ export default function BreedingPage() {
 
   useEffect(() => {
     const herdParam = activeHerd?.id ? `?herdId=${activeHerd.id}&status=ACTIVE` : "?status=ACTIVE";
-    fetch(`/api/animals${herdParam}`).then((r) => r.json()).then(setAnimals).catch(console.error);
+    fetch(`/api/animals${herdParam}`).then((r) => r.json()).then((data) => setAnimals(sortByTagThenName(data))).catch(console.error);
   }, [activeHerd?.id]);
 
   const fetchEvents = useCallback(async () => {

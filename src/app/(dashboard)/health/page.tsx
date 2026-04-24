@@ -10,6 +10,7 @@ import TextArea from "@/components/ui/TextArea";
 import { SkeletonTable } from "@/components/ui/Skeleton";
 import { useFarm } from "@/components/providers/FarmProvider";
 import type { AnimalConfig } from "@/lib/animalConfig";
+import { sortByTagThenName } from "@/lib/sortAnimals";
 
 interface AnimalOption {
   id: string;
@@ -56,7 +57,7 @@ export default function HealthPage() {
     const herdParam = activeHerd ? `&herdId=${activeHerd.id}` : "";
     fetch(`/api/animals?status=ACTIVE${herdParam}`)
       .then((res) => res.json())
-      .then(setAnimals)
+      .then((data) => setAnimals(sortByTagThenName(data)))
       .catch(console.error);
   }, [activeHerd]);
 

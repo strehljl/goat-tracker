@@ -6,6 +6,7 @@ import Input from "@/components/ui/Input";
 import Select from "@/components/ui/Select";
 import TextArea from "@/components/ui/TextArea";
 import { AnimalConfig } from "@/lib/animalConfig";
+import { sortByTagThenName } from "@/lib/sortAnimals";
 
 interface AnimalOption {
   id: string;
@@ -98,8 +99,8 @@ export default function AnimalForm({
       fetch("/api/farms/current/locations").then((r) => (r.ok ? r.json() : [])),
     ])
       .then(([f, m, locs]: [AnimalOption[], AnimalOption[], LocationOption[]]) => {
-        setFemales(f);
-        setMales(m);
+        setFemales(sortByTagThenName(f));
+        setMales(sortByTagThenName(m));
         setLocationOptions(Array.isArray(locs) ? locs : []);
       })
       .catch(console.error);

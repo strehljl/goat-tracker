@@ -11,6 +11,7 @@ import TextArea from "@/components/ui/TextArea";
 import { SkeletonTable } from "@/components/ui/Skeleton";
 import Skeleton from "@/components/ui/Skeleton";
 import { useFarm } from "@/components/providers/FarmProvider";
+import { sortByTagThenName } from "@/lib/sortAnimals";
 
 interface AnimalOption { id: string; name: string; tagId: string; gender: string; status: string }
 
@@ -65,7 +66,7 @@ export default function FinancialsPage() {
 
   useEffect(() => {
     const herdParam = activeHerd ? `?herdId=${activeHerd.id}` : "";
-    fetch(`/api/animals${herdParam}`).then((r) => r.json()).then(setAnimals).catch(console.error);
+    fetch(`/api/animals${herdParam}`).then((r) => r.json()).then((data) => setAnimals(sortByTagThenName(data))).catch(console.error);
     fetch("/api/financials/summary").then((r) => r.json()).then(setSummary).catch(console.error);
   }, [activeHerd]);
 
