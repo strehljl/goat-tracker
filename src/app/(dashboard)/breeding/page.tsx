@@ -51,6 +51,7 @@ export default function BreedingPage() {
   const [showMassModal, setShowMassModal] = useState(false);
   const [birthEvent, setBirthEvent] = useState<BreedingEvent | null>(null);
   const [statusFilter, setStatusFilter] = useState("");
+  const [selectedEventIds, setSelectedEventIds] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     const herdParam = activeHerd?.id ? `?herdId=${activeHerd.id}&status=ACTIVE` : "?status=ACTIVE";
@@ -70,6 +71,78 @@ export default function BreedingPage() {
   }, [statusFilter, activeHerd?.id]);
 
   useEffect(() => { fetchEvents(); }, [fetchEvents]);
+
+  // Clear selection when event list changes
+  useEffect(() => { setSelectedEventIds(new Set()); }, [events]);
+
+  const toggleEvent = (id: string) =>
+    setSelectedEventIds((prev) => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+
+  const allEventsSelected = events.length > 0 && selectedEventIds.size === events.length;
+  const toggleAllEvents = () =>
+    setSelectedEventIds(allEventsSelected ? new Set() : new Set(events.map((e) => e.id)));
+
+  const printSelectedEvents = () => {
+    const selected = events.filter((e) => selectedEventIds.has(e.id));
+    const rows = selected.map((event) => {
+      const alive = event.birthRecord?.offspring.filter((o) => o.status === "ALIVE").length ?? "—";
+      const stillborn = event.birthRecord?.offspring.filter((o) => o.status === "STILLBORN").length ?? "—";
+      const birthYear = event.birthRecord?.birthDate
+        ? new Date(event.birthRecord.birthDate).getUTCFullYear()
+        : "—";
+      return `<tr>
+        <td>${event.parentFemale.tagId}</td>
+        <td>${event.parentFemale.name}</td>
+        <td style="text-align:center">${alive}</td>
+        <td style="text-align:center">${stillborn}</td>
+        <td style="text-align:center">${birthYear}</td>
+      </tr>`;
+    }).join("");
+    const html = `<!DOCTYPE html>
+<html>
+<head>
+  <title>Breeding Report</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 40px; color: #000; }
+    h1 { font-size: 22px; margin-bottom: 4px; }
+    .subtitle { color: #555; margin: 0 0 24px; font-size: 13px; }
+    table { width: 100%; border-collapse: collapse; }
+    th { background: #f0f0f0; border-bottom: 2px solid #ccc; padding: 8px 12px; text-align: left; font-size: 13px; }
+    th.center, td.center { text-align: center; }
+    td { border-bottom: 1px solid #eee; padding: 8px 12px; font-size: 13px; }
+    tfoot td { font-weight: bold; border-top: 2px solid #ccc; border-bottom: none; padding-top: 10px; }
+    @media print { body { margin: 20px; } }
+  </style>
+</head>
+<body>
+  <h1>Breeding Report</h1>
+  <p class="subtitle">Generated ${new Date().toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}</p>
+  <table>
+    <thead>
+      <tr>
+        <th>Tag ID</th>
+        <th>Name</th>
+        <th class="center">Babies Alive</th>
+        <th class="center">Babies Stillborn</th>
+        <th class="center">Birth Year</th>
+      </tr>
+    </thead>
+    <tbody>${rows}</tbody>
+    <tfoot>
+      <tr>
+        <td colspan="5">${selected.length} event${selected.length !== 1 ? "s" : ""} selected</td>
+      </tr>
+    </tfoot>
+  </table>
+</body>
+</html>`;
+    const win = window.open("", "_blank");
+    if (win) { win.document.write(html); win.document.close(); win.print(); }
+  };
 
   const handleAdd = async (data: Record<string, string>) => {
     const res = await fetch("/api/breeding", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) });
@@ -130,6 +203,11 @@ export default function BreedingPage() {
           </p>
         </div>
         <div className="flex gap-2">
+          {selectedEventIds.size > 0 && (
+            <Button variant="outline" onClick={printSelectedEvents}>
+              🖨 Print {selectedEventIds.size} Selected
+            </Button>
+          )}
           <Button variant="outline" onClick={() => setShowMassModal(true)}>+ Mass Breeding</Button>
           <Button onClick={() => setShowAddModal(true)}>+ Add Breeding</Button>
         </div>
@@ -154,8 +232,31 @@ export default function BreedingPage() {
           <div className="rounded-xl border border-border bg-surface px-4 py-8 text-center text-text-light">
             No breeding events found.
           </div>
-        ) : events.map((event) => (
+        ) : (
+          <>
+            {/* Select-all row */}
+            <div className="flex items-center gap-3 px-1 py-1">
+              <input
+                type="checkbox"
+                checked={allEventsSelected}
+                onChange={toggleAllEvents}
+                className="accent-primary h-4 w-4"
+                title="Select all"
+              />
+              <span className="text-xs text-text-light">
+                {selectedEventIds.size > 0 ? `${selectedEventIds.size} selected` : "Select all"}
+              </span>
+            </div>
+            {events.map((event) => (
           <div key={event.id} className="rounded-xl border border-border bg-surface p-4">
+            <div className="flex gap-3">
+              <input
+                type="checkbox"
+                checked={selectedEventIds.has(event.id)}
+                onChange={() => toggleEvent(event.id)}
+                className="accent-primary h-4 w-4 mt-1 shrink-0"
+              />
+              <div className="flex-1">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <div className="flex items-center gap-2">
@@ -208,8 +309,12 @@ export default function BreedingPage() {
                 )}
               </div>
             )}
+              </div>
+            </div>
           </div>
         ))}
+          </>
+        )}
       </div>
 
       <Modal open={showMassModal} onClose={() => setShowMassModal(false)} title="Mass Breeding Event" className="max-w-lg">

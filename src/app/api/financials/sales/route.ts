@@ -10,7 +10,7 @@ export async function GET() {
   try {
     const sales = await prisma.sale.findMany({
       where: { farmId },
-      include: { animal: { select: { id: true, name: true, tagId: true } } },
+      include: { animal: { select: { id: true, name: true, tagId: true, dateOfBirth: true } } },
       orderBy: { saleDate: "desc" },
     });
     return NextResponse.json(sales);
