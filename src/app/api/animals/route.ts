@@ -100,32 +100,51 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const animal = await prisma.animal.create({
-      data: {
-        farmId,
-        herdId: herdId || null,
-        name,
-        tagId,
-        breed: breed || null,
-        dateOfBirth: dateOfBirth ? new Date(dateOfBirth) : null,
-        gender,
-        colorMarkings: colorMarkings || null,
-        photoUrl: photoUrl || null,
-        purchaseDate: purchaseDate ? new Date(purchaseDate) : null,
-        purchasePrice: purchasePrice ? parseFloat(purchasePrice) : null,
-        damId: damId || null,
-        sireId: sireId || null,
-        locationId: bodyLocationId || null,
-        status: status || "ACTIVE",
-        notes: notes || null,
-      },
-      include: {
-        dam: { select: { id: true, name: true, tagId: true } },
-        sire: { select: { id: true, name: true, tagId: true } },
-        location: { select: { id: true, name: true } },
-        herd: { select: { id: true, name: true, animalType: true } },
-        sale: { select: { saleDate: true } },
-      },
+    const parsedPrice = purchasePrice ? parseFloat(purchasePrice) : null;
+
+    const animal = await prisma.$transaction(async (tx) => {
+      const created = await tx.animal.create({
+        data: {
+          farmId,
+          herdId: herdId || null,
+          name,
+          tagId,
+          breed: breed || null,
+          dateOfBirth: dateOfBirth ? new Date(dateOfBirth) : null,
+          gender,
+          colorMarkings: colorMarkings || null,
+          photoUrl: photoUrl || null,
+          purchaseDate: purchaseDate ? new Date(purchaseDate) : null,
+          purchasePrice: parsedPrice,
+          damId: damId || null,
+          sireId: sireId || null,
+          locationId: bodyLocationId || null,
+          status: status || "ACTIVE",
+          notes: notes || null,
+        },
+        include: {
+          dam: { select: { id: true, name: true, tagId: true } },
+          sire: { select: { id: true, name: true, tagId: true } },
+          location: { select: { id: true, name: true } },
+          herd: { select: { id: true, name: true, animalType: true } },
+          sale: { select: { saleDate: true } },
+        },
+      });
+
+      if (parsedPrice && parsedPrice > 0) {
+        await tx.expense.create({
+          data: {
+            farmId,
+            animalId: created.id,
+            category: "PURCHASE",
+            amount: parsedPrice,
+            date: purchaseDate ? new Date(purchaseDate) : new Date(),
+            description: `Purchase: ${name} (#${tagId})`,
+          },
+        });
+      }
+
+      return created;
     });
 
     return NextResponse.json(animal, { status: 201 });
