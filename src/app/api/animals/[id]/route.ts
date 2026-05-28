@@ -130,32 +130,40 @@ export async function PUT(
       if (!sire) return NextResponse.json({ error: "Sire not found" }, { status: 404 });
     }
 
-    const animal = await prisma.animal.update({
-      where: { id },
-      data: {
-        name,
-        tagId,
-        breed: breed || null,
-        dateOfBirth: dateOfBirth ? new Date(dateOfBirth) : null,
-        gender,
-        colorMarkings: colorMarkings || null,
-        photoUrl: photoUrl || null,
-        purchaseDate: purchaseDate ? new Date(purchaseDate) : null,
-        purchasePrice: purchasePrice ? parseFloat(purchasePrice) : null,
-        damId: damId || null,
-        sireId: sireId || null,
-        locationId: bodyLocationId || null,
-        herdId: herdId || null,
-        status: status || "ACTIVE",
-        notes: notes || null,
-      },
-      include: {
-        dam: { select: { id: true, name: true, tagId: true } },
-        sire: { select: { id: true, name: true, tagId: true } },
-        location: { select: { id: true, name: true } },
-        herd: { select: { id: true, name: true, animalType: true } },
-      },
-    });
+    const newStatus = status || "ACTIVE";
+    const animalData = {
+      name,
+      tagId,
+      breed: breed || null,
+      dateOfBirth: dateOfBirth ? new Date(dateOfBirth) : null,
+      gender,
+      colorMarkings: colorMarkings || null,
+      photoUrl: photoUrl || null,
+      purchaseDate: purchaseDate ? new Date(purchaseDate) : null,
+      purchasePrice: purchasePrice ? parseFloat(purchasePrice) : null,
+      damId: damId || null,
+      sireId: sireId || null,
+      locationId: bodyLocationId || null,
+      herdId: herdId || null,
+      status: newStatus,
+      notes: notes || null,
+    };
+    const include = {
+      dam: { select: { id: true, name: true, tagId: true } },
+      sire: { select: { id: true, name: true, tagId: true } },
+      location: { select: { id: true, name: true } },
+      herd: { select: { id: true, name: true, animalType: true } },
+    };
+
+    let animal;
+    if (owned.status === "SOLD" && newStatus !== "SOLD") {
+      animal = await prisma.$transaction(async (tx) => {
+        await tx.sale.deleteMany({ where: { animalId: id } });
+        return tx.animal.update({ where: { id }, data: animalData, include });
+      });
+    } else {
+      animal = await prisma.animal.update({ where: { id }, data: animalData, include });
+    }
 
     return NextResponse.json(animal);
   } catch (error) {

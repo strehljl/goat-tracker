@@ -172,6 +172,12 @@ export default function FinancialsPage() {
     refreshAll();
   };
 
+  const handleCancelSale = async (id: string, animalName: string) => {
+    if (!confirm(`Cancel the sale of ${animalName} and mark them as active again?`)) return;
+    await fetch(`/api/financials/sales/${id}`, { method: "DELETE" });
+    refreshAll();
+  };
+
   return (
     <div>
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -313,6 +319,12 @@ export default function FinancialsPage() {
                         {!!s.buyerName && <span>Buyer: {s.buyerName as string}</span>}
                       </div>
                     </div>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); handleCancelSale(s.id as string, animal.name); }}
+                      className="ml-2 shrink-0 text-xs text-error hover:underline"
+                    >
+                      Cancel Sale
+                    </button>
                   </div>
                 );
               })}
