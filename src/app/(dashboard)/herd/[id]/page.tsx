@@ -93,7 +93,7 @@ export default function AnimalDetailPage({ params }: { params: Promise<{ id: str
     const res = await fetch(`/api/animals/${id}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(data),
+      body: JSON.stringify({ ...data, herdId: animal.herdId }),
     });
     if (!res.ok) {
       const err = await res.json();

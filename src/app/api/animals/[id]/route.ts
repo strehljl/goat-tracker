@@ -144,7 +144,7 @@ export async function PUT(
       damId: damId || null,
       sireId: sireId || null,
       locationId: bodyLocationId || null,
-      herdId: herdId || null,
+      ...(herdId !== undefined ? { herdId: herdId || null } : {}),
       status: newStatus,
       notes: notes || null,
     };
