@@ -90,6 +90,7 @@ export default function AnimalDetailPage({ params }: { params: Promise<{ id: str
   }, [id]);
 
   const handleUpdate = async (data: AnimalFormData) => {
+    if (!animal) return;
     const res = await fetch(`/api/animals/${id}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
