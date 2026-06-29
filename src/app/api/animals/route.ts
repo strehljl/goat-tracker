@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireFarm } from "@/lib/farmAuth";
+import { errorResponse } from "@/lib/apiError";
 
 // GET /api/animals — list animals with optional filters
 export async function GET(request: NextRequest) {
@@ -54,8 +55,7 @@ export async function GET(request: NextRequest) {
     });
     return NextResponse.json(animals);
   } catch (error) {
-    console.error("Error fetching animals:", error);
-    return NextResponse.json({ error: "Failed to fetch animals" }, { status: 500 });
+    return errorResponse(error, "Failed to fetch animals");
   }
 }
 
@@ -149,7 +149,6 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json(animal, { status: 201 });
   } catch (error) {
-    console.error("Error creating animal:", error);
-    return NextResponse.json({ error: "Failed to create animal" }, { status: 500 });
+    return errorResponse(error, "Failed to create animal");
   }
 }

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireFarm } from "@/lib/farmAuth";
+import { errorResponse } from "@/lib/apiError";
 
 export async function DELETE(
   request: NextRequest,
@@ -20,7 +21,6 @@ export async function DELETE(
     await prisma.expense.delete({ where: { id } });
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error("Error deleting expense:", error);
-    return NextResponse.json({ error: "Failed to delete expense" }, { status: 500 });
+    return errorResponse(error, "Failed to delete expense");
   }
 }

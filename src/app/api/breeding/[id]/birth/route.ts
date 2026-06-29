@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireFarm } from "@/lib/farmAuth";
+import { errorResponse } from "@/lib/apiError";
 
 // POST /api/breeding/[id]/birth — record a birth event for a breeding event
 export async function POST(
@@ -88,10 +89,9 @@ export async function POST(
 
     return NextResponse.json(result, { status: 201 });
   } catch (error) {
-    console.error("Error recording birth:", error);
     if (error instanceof Error && error.message === "Breeding event not found") {
       return NextResponse.json({ error: "Breeding event not found" }, { status: 404 });
     }
-    return NextResponse.json({ error: "Failed to record birth" }, { status: 500 });
+    return errorResponse(error, "Failed to record birth");
   }
 }

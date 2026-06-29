@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireFarm } from "@/lib/farmAuth";
+import { errorResponse } from "@/lib/apiError";
 
 // GET /api/animals/[id]
 export async function GET(
@@ -63,8 +64,7 @@ export async function GET(
 
     return NextResponse.json(animal);
   } catch (error) {
-    console.error("Error fetching animal:", error);
-    return NextResponse.json({ error: "Failed to fetch animal" }, { status: 500 });
+    return errorResponse(error, "Failed to fetch animal");
   }
 }
 
@@ -167,8 +167,7 @@ export async function PUT(
 
     return NextResponse.json(animal);
   } catch (error) {
-    console.error("Error updating animal:", error);
-    return NextResponse.json({ error: "Failed to update animal" }, { status: 500 });
+    return errorResponse(error, "Failed to update animal");
   }
 }
 
@@ -192,7 +191,6 @@ export async function DELETE(
     await prisma.animal.delete({ where: { id } });
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error("Error deleting animal:", error);
-    return NextResponse.json({ error: "Failed to delete animal" }, { status: 500 });
+    return errorResponse(error, "Failed to delete animal");
   }
 }

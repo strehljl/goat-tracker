@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireFarm } from "@/lib/farmAuth";
+import { errorResponse } from "@/lib/apiError";
 
 export async function GET(request: NextRequest) {
   const auth = await requireFarm();
@@ -131,7 +132,6 @@ export async function GET(request: NextRequest) {
       upcomingBreedings: pendingBreedingsList,
     });
   } catch (error) {
-    console.error("Dashboard error:", error);
-    return NextResponse.json({ error: "Failed to load dashboard data" }, { status: 500 });
+    return errorResponse(error, "Failed to load dashboard data");
   }
 }

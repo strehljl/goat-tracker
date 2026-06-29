@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireFarm } from "@/lib/farmAuth";
+import { errorResponse } from "@/lib/apiError";
 
 export async function PUT(
   request: NextRequest,
@@ -37,8 +38,7 @@ export async function PUT(
     });
     return NextResponse.json(medication);
   } catch (error) {
-    console.error("Error updating medication:", error);
-    return NextResponse.json({ error: "Failed to update medication" }, { status: 500 });
+    return errorResponse(error, "Failed to update medication");
   }
 }
 
@@ -60,7 +60,6 @@ export async function DELETE(
     await prisma.medication.delete({ where: { id } });
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error("Error deleting medication:", error);
-    return NextResponse.json({ error: "Failed to delete medication" }, { status: 500 });
+    return errorResponse(error, "Failed to delete medication");
   }
 }

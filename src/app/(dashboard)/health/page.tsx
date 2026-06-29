@@ -83,11 +83,14 @@ export default function HealthPage() {
     if (!confirm("Delete this record?")) return;
     try {
       const res = await fetch(`/api/health/${activeTab}/${id}`, { method: "DELETE" });
-      if (!res.ok) throw new Error("Delete failed");
+      if (!res.ok) {
+        const data = await res.json().catch(() => null);
+        throw new Error(data?.error || "Delete failed");
+      }
       fetchRecords();
     } catch (error) {
       console.error("Failed to delete:", error);
-      alert("Failed to delete record. Please try again.");
+      alert(error instanceof Error ? error.message : "Failed to delete record. Please try again.");
     }
   };
 

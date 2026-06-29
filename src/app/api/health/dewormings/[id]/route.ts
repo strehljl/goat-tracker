@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireFarm } from "@/lib/farmAuth";
+import { errorResponse } from "@/lib/apiError";
 
 export async function PUT(
   request: NextRequest,
@@ -36,8 +37,7 @@ export async function PUT(
     });
     return NextResponse.json(deworming);
   } catch (error) {
-    console.error("Error updating deworming:", error);
-    return NextResponse.json({ error: "Failed to update deworming" }, { status: 500 });
+    return errorResponse(error, "Failed to update deworming");
   }
 }
 
@@ -59,7 +59,6 @@ export async function DELETE(
     await prisma.deworming.delete({ where: { id } });
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error("Error deleting deworming:", error);
-    return NextResponse.json({ error: "Failed to delete deworming" }, { status: 500 });
+    return errorResponse(error, "Failed to delete deworming");
   }
 }

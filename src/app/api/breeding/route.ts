@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireFarm } from "@/lib/farmAuth";
+import { errorResponse } from "@/lib/apiError";
 
 export async function GET(request: NextRequest) {
   const auth = await requireFarm();
@@ -40,8 +41,7 @@ export async function GET(request: NextRequest) {
     });
     return NextResponse.json(events);
   } catch (error) {
-    console.error("Error fetching breeding events:", error);
-    return NextResponse.json({ error: "Failed to fetch breeding events" }, { status: 500 });
+    return errorResponse(error, "Failed to fetch breeding events");
   }
 }
 
@@ -85,7 +85,6 @@ export async function POST(request: NextRequest) {
     });
     return NextResponse.json(event, { status: 201 });
   } catch (error) {
-    console.error("Error creating breeding event:", error);
-    return NextResponse.json({ error: "Failed to create breeding event" }, { status: 500 });
+    return errorResponse(error, "Failed to create breeding event");
   }
 }

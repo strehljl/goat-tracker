@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { errorResponse } from "@/lib/apiError";
 
 // GET /api/farms/[id]/locations — list locations for a farm
 export async function GET(
@@ -62,9 +63,6 @@ export async function POST(
     });
     return NextResponse.json(location, { status: 201 });
   } catch (error: unknown) {
-    if ((error as { code?: string }).code === "P2002") {
-      return NextResponse.json({ error: "A location with that name already exists" }, { status: 409 });
-    }
-    return NextResponse.json({ error: "Failed to create location" }, { status: 500 });
+    return errorResponse(error, "Failed to create location");
   }
 }

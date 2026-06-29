@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { errorResponse } from "@/lib/apiError";
 import { AnimalType } from "@prisma/client";
 
 const VALID_ANIMAL_TYPES = new Set<string>(["GOAT", "SHEEP", "CATTLE", "PIG", "ALPACA", "OTHER"]);
@@ -49,17 +50,7 @@ export async function PATCH(
     const updated = await prisma.herd.update({ where: { id }, data: updateData });
     return NextResponse.json(updated);
   } catch (error: unknown) {
-    if (
-      error instanceof Error &&
-      error.message.includes("Unique constraint")
-    ) {
-      return NextResponse.json(
-        { error: "A herd with this name already exists on this farm" },
-        { status: 409 }
-      );
-    }
-    console.error("Error updating herd:", error);
-    return NextResponse.json({ error: "Failed to update herd" }, { status: 500 });
+    return errorResponse(error, "Failed to update herd");
   }
 }
 
@@ -79,6 +70,10 @@ export async function DELETE(
     return NextResponse.json({ error: "Not found or forbidden" }, { status: 404 });
   }
 
-  await prisma.herd.delete({ where: { id } });
-  return NextResponse.json({ success: true });
+  try {
+    await prisma.herd.delete({ where: { id } });
+    return NextResponse.json({ success: true });
+  } catch (error: unknown) {
+    return errorResponse(error, "Failed to delete herd");
+  }
 }

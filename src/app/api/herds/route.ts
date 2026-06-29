@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { requireFarm } from "@/lib/farmAuth";
+import { errorResponse } from "@/lib/apiError";
 import { AnimalType } from "@prisma/client";
 
 const VALID_ANIMAL_TYPES = new Set<string>(["GOAT", "SHEEP", "CATTLE", "PIG", "ALPACA", "OTHER"]);
@@ -69,16 +70,6 @@ export async function POST(request: NextRequest) {
     });
     return NextResponse.json(herd, { status: 201 });
   } catch (error: unknown) {
-    if (
-      error instanceof Error &&
-      error.message.includes("Unique constraint")
-    ) {
-      return NextResponse.json(
-        { error: "A herd with this name already exists on this farm" },
-        { status: 409 }
-      );
-    }
-    console.error("Error creating herd:", error);
-    return NextResponse.json({ error: "Failed to create herd" }, { status: 500 });
+    return errorResponse(error, "Failed to create herd");
   }
 }

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireFarm } from "@/lib/farmAuth";
+import { errorResponse } from "@/lib/apiError";
 import { AnimalGender, AnimalStatus } from "@prisma/client";
 
 interface AnimalImportRow {
@@ -206,7 +207,6 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ imported, errors: insertErrors });
   } catch (err) {
-    console.error("Import error:", err);
-    return NextResponse.json({ error: "Import failed" }, { status: 500 });
+    return errorResponse(err, "Import failed");
   }
 }

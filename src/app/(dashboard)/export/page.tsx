@@ -37,7 +37,10 @@ export default function ExportPage() {
     setDownloading(type);
     try {
       const res = await fetch(`/api/export?type=${type}&format=csv`);
-      if (!res.ok) throw new Error("Export failed");
+      if (!res.ok) {
+        const data = await res.json().catch(() => null);
+        throw new Error(data?.error || "Export failed");
+      }
 
       const blob = await res.blob();
       const url = window.URL.createObjectURL(blob);
@@ -50,7 +53,7 @@ export default function ExportPage() {
       document.body.removeChild(a);
     } catch (error) {
       console.error("Export failed:", error);
-      alert("Failed to export data. Please try again.");
+      alert(error instanceof Error ? error.message : "Failed to export data. Please try again.");
     } finally {
       setDownloading(null);
     }

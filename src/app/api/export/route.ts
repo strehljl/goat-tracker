@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireFarm } from "@/lib/farmAuth";
+import { errorResponse } from "@/lib/apiError";
 
 // GET /api/export?type=inventory|health|financials&format=csv
 export async function GET(request: NextRequest) {
@@ -99,8 +100,7 @@ export async function GET(request: NextRequest) {
       },
     });
   } catch (error) {
-    console.error("Export error:", error);
-    return NextResponse.json({ error: "Failed to export" }, { status: 500 });
+    return errorResponse(error, "Failed to export data");
   }
 }
 

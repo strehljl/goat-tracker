@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireFarm } from "@/lib/farmAuth";
+import { errorResponse } from "@/lib/apiError";
 
 export async function GET() {
   const auth = await requireFarm();
@@ -36,7 +37,6 @@ export async function GET() {
       })),
     });
   } catch (error) {
-    console.error("Error fetching financial summary:", error);
-    return NextResponse.json({ error: "Failed to fetch summary" }, { status: 500 });
+    return errorResponse(error, "Failed to fetch summary");
   }
 }

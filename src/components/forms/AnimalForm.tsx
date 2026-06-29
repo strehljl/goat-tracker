@@ -158,8 +158,8 @@ export default function AnimalForm({
     setLoading(true);
     try {
       await onSubmit(form);
-    } catch {
-      setErrors({ form: `Failed to save ${config.singular}` });
+    } catch (err) {
+      setErrors({ form: err instanceof Error ? err.message : `Failed to save ${config.singular}` });
     } finally {
       setLoading(false);
     }

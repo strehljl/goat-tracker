@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireFarm } from "@/lib/farmAuth";
+import { errorResponse } from "@/lib/apiError";
 
 export async function GET(request: NextRequest) {
   const auth = await requireFarm();
@@ -17,8 +18,7 @@ export async function GET(request: NextRequest) {
     });
     return NextResponse.json(dewormings);
   } catch (error) {
-    console.error("Error fetching dewormings:", error);
-    return NextResponse.json({ error: "Failed to fetch dewormings" }, { status: 500 });
+    return errorResponse(error, "Failed to fetch dewormings");
   }
 }
 
@@ -52,7 +52,6 @@ export async function POST(request: NextRequest) {
     });
     return NextResponse.json(deworming, { status: 201 });
   } catch (error) {
-    console.error("Error creating deworming:", error);
-    return NextResponse.json({ error: "Failed to create deworming" }, { status: 500 });
+    return errorResponse(error, "Failed to create deworming");
   }
 }

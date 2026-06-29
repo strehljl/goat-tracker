@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
+import { errorResponse } from "@/lib/apiError";
 import { Resend } from "resend";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
@@ -50,7 +51,6 @@ export async function POST(req: Request) {
     });
     return NextResponse.json({ ok: true });
   } catch (err) {
-    console.error("Feedback email error:", err);
-    return NextResponse.json({ error: "Failed to send feedback" }, { status: 500 });
+    return errorResponse(err, "Failed to send feedback");
   }
 }

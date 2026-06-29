@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
 import { requireFarm } from "@/lib/farmAuth";
+import { errorResponse } from "@/lib/apiError";
 
 export async function POST(request: NextRequest) {
   const auth = await requireFarm();
@@ -58,7 +59,6 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ url: urlData.publicUrl });
   } catch (error) {
-    console.error("Upload error:", error);
-    return NextResponse.json({ error: "Failed to upload file" }, { status: 500 });
+    return errorResponse(error, "Failed to upload file");
   }
 }
