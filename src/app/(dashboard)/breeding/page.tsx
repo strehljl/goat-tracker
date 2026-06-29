@@ -50,6 +50,7 @@ export default function BreedingPage() {
   const [showAddModal, setShowAddModal] = useState(false);
   const [showMassModal, setShowMassModal] = useState(false);
   const [birthEvent, setBirthEvent] = useState<BreedingEvent | null>(null);
+  const [editEvent, setEditEvent] = useState<BreedingEvent | null>(null);
   const [statusFilter, setStatusFilter] = useState("");
   const [selectedEventIds, setSelectedEventIds] = useState<Set<string>>(new Set());
 
@@ -148,6 +149,18 @@ export default function BreedingPage() {
     const res = await fetch("/api/breeding", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) });
     if (!res.ok) throw new Error((await res.json()).error);
     setShowAddModal(false);
+    fetchEvents();
+  };
+
+  const handleEdit = async (data: Record<string, string>) => {
+    if (!editEvent) return;
+    const res = await fetch(`/api/breeding/${editEvent.id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+    });
+    if (!res.ok) throw new Error((await res.json()).error);
+    setEditEvent(null);
     fetchEvents();
   };
 
@@ -281,6 +294,7 @@ export default function BreedingPage() {
                     <Button size="sm" variant="outline" onClick={() => handleStatusChange(event.id, "FAILED")}>Failed</Button>
                   </>
                 )}
+                <Button size="sm" variant="outline" onClick={() => setEditEvent(event)}>Edit</Button>
                 <Button size="sm" variant="danger" onClick={() => handleDelete(event.id)}>Delete</Button>
               </div>
             </div>
@@ -329,6 +343,24 @@ export default function BreedingPage() {
         <BreedingForm females={females} males={males} config={config} onSubmit={handleAdd} onCancel={() => setShowAddModal(false)} />
       </Modal>
 
+      <Modal open={!!editEvent} onClose={() => setEditEvent(null)} title="Edit Breeding Event" className="max-w-lg">
+        {editEvent && (
+          <BreedingForm
+            females={females} males={males} config={config}
+            initialData={{
+              parentFemaleId: editEvent.parentFemale.id,
+              parentMaleId: editEvent.parentMale.id,
+              breedingDate: editEvent.breedingDate.split("T")[0],
+              expectedDueDate: editEvent.expectedDueDate ? editEvent.expectedDueDate.split("T")[0] : "",
+              notes: editEvent.notes ?? "",
+            }}
+            onSubmit={handleEdit}
+            onCancel={() => setEditEvent(null)}
+            submitLabel="Save Changes"
+          />
+        )}
+      </Modal>
+
       <Modal
         open={!!birthEvent}
         onClose={() => setBirthEvent(null)}
@@ -347,11 +379,17 @@ export default function BreedingPage() {
   );
 }
 
-function BreedingForm({ females, males, config, onSubmit, onCancel }: {
+interface BreedingFormData { [key: string]: string; parentFemaleId: string; parentMaleId: string; breedingDate: string; expectedDueDate: string; notes: string }
+
+function BreedingForm({ females, males, config, initialData, onSubmit, onCancel, submitLabel = "Save" }: {
   females: AnimalOption[]; males: AnimalOption[]; config: AnimalConfig | null;
-  onSubmit: (data: Record<string, string>) => Promise<void>; onCancel: () => void;
+  initialData?: BreedingFormData;
+  onSubmit: (data: Record<string, string>) => Promise<void>; onCancel: () => void; submitLabel?: string;
 }) {
-  const [form, setForm] = useState({ parentFemaleId: "", parentMaleId: "", breedingDate: "", expectedDueDate: "", notes: "" });
+  const [form, setForm] = useState<BreedingFormData>({
+    parentFemaleId: "", parentMaleId: "", breedingDate: "", expectedDueDate: "", notes: "",
+    ...initialData,
+  });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -394,7 +432,7 @@ function BreedingForm({ females, males, config, onSubmit, onCancel }: {
       <TextArea id="b-notes" label="Notes" value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} rows={2} />
       <div className="flex justify-end gap-3">
         <Button type="button" variant="outline" onClick={onCancel}>Cancel</Button>
-        <Button type="submit" loading={loading}>Save</Button>
+        <Button type="submit" loading={loading}>{submitLabel}</Button>
       </div>
     </form>
   );
