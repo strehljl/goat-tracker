@@ -83,6 +83,11 @@ export async function POST(request: NextRequest) {
       herdId,
       status,
       notes,
+      saleDate,
+      salePrice,
+      buyerName,
+      buyerContact,
+      saleNotes,
     } = body;
 
     if (!name || !tagId || !gender) {
@@ -140,6 +145,20 @@ export async function POST(request: NextRequest) {
             amount: parsedPrice,
             date: purchaseDate ? new Date(purchaseDate) : new Date(),
             description: `Purchase: ${name} (#${tagId})`,
+          },
+        });
+      }
+
+      if ((status || "ACTIVE") === "SOLD" && saleDate && salePrice) {
+        await tx.sale.create({
+          data: {
+            farmId,
+            animalId: created.id,
+            saleDate: new Date(saleDate),
+            salePrice: parseFloat(salePrice),
+            buyerName: buyerName || null,
+            buyerContact: buyerContact || null,
+            notes: saleNotes || null,
           },
         });
       }

@@ -367,6 +367,7 @@ export default function AnimalDetailPage({ params }: { params: Promise<{ id: str
             config={activeConfig}
             herdId={activeHerd?.id}
             initialData={editInitialData}
+            hasExistingSale={!!animal.sale}
             onSubmit={handleUpdate}
             onCancel={() => setShowEditModal(false)}
             submitLabel="Save Changes"

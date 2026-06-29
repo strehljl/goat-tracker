@@ -97,6 +97,11 @@ export async function PUT(
       herdId,
       status,
       notes,
+      saleDate,
+      salePrice,
+      buyerName,
+      buyerContact,
+      saleNotes,
     } = body;
 
     if (!name || !tagId || !gender) {
@@ -106,7 +111,10 @@ export async function PUT(
       );
     }
 
-    const owned = await prisma.animal.findFirst({ where: { id, farmId } });
+    const owned = await prisma.animal.findFirst({
+      where: { id, farmId },
+      include: { sale: { select: { id: true } } },
+    });
     if (!owned) {
       return NextResponse.json({ error: "Animal not found" }, { status: 404 });
     }
@@ -159,6 +167,21 @@ export async function PUT(
     if (owned.status === "SOLD" && newStatus !== "SOLD") {
       animal = await prisma.$transaction(async (tx) => {
         await tx.sale.deleteMany({ where: { animalId: id } });
+        return tx.animal.update({ where: { id }, data: animalData, include });
+      });
+    } else if (newStatus === "SOLD" && !owned.sale && saleDate && salePrice) {
+      animal = await prisma.$transaction(async (tx) => {
+        await tx.sale.create({
+          data: {
+            farmId,
+            animalId: id,
+            saleDate: new Date(saleDate),
+            salePrice: parseFloat(salePrice),
+            buyerName: buyerName || null,
+            buyerContact: buyerContact || null,
+            notes: saleNotes || null,
+          },
+        });
         return tx.animal.update({ where: { id }, data: animalData, include });
       });
     } else {

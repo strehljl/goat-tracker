@@ -35,12 +35,18 @@ export interface AnimalFormData {
   locationId: string;
   status: string;
   notes: string;
+  saleDate: string;
+  salePrice: string;
+  buyerName: string;
+  buyerContact: string;
+  saleNotes: string;
 }
 
 interface AnimalFormProps {
   config: AnimalConfig;
   herdId?: string;
   initialData?: Partial<AnimalFormData>;
+  hasExistingSale?: boolean;
   onSubmit: (data: AnimalFormData) => Promise<void>;
   onCancel: () => void;
   submitLabel?: string;
@@ -67,12 +73,18 @@ const emptyForm: AnimalFormData = {
   locationId: "",
   status: "ACTIVE",
   notes: "",
+  saleDate: "",
+  salePrice: "",
+  buyerName: "",
+  buyerContact: "",
+  saleNotes: "",
 };
 
 export default function AnimalForm({
   config,
   herdId,
   initialData,
+  hasExistingSale = false,
   onSubmit,
   onCancel,
   submitLabel = "Save",
@@ -117,11 +129,17 @@ export default function AnimalForm({
     }
   };
 
+  const showSaleFields = form.status === "SOLD" && !hasExistingSale;
+
   const validate = (): boolean => {
     const errs: Record<string, string> = {};
     if (!form.name.trim()) errs.name = "Name is required";
     if (!form.tagId.trim()) errs.tagId = "Tag ID is required";
     if (!form.gender) errs.gender = "Gender is required";
+    if (showSaleFields) {
+      if (!form.saleDate) errs.saleDate = "Sale date is required";
+      if (!form.salePrice || parseFloat(form.salePrice) <= 0) errs.salePrice = "Sale price is required";
+    }
     setErrors(errs);
     return Object.keys(errs).length === 0;
   };
@@ -284,6 +302,60 @@ export default function AnimalForm({
           options={statusOptions}
         />
       </div>
+
+      {showSaleFields && (
+        <div className="rounded-lg border border-border bg-background p-4 space-y-4">
+          <p className="text-sm font-medium text-text">Sale Details</p>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Input
+              id="saleDate"
+              label="Sale Date *"
+              type="date"
+              value={form.saleDate}
+              onChange={(e) => set("saleDate", e.target.value)}
+              error={errors.saleDate}
+            />
+            <Input
+              id="salePrice"
+              label="Sale Price ($) *"
+              type="number"
+              step="0.01"
+              min="0"
+              value={form.salePrice}
+              onChange={(e) => set("salePrice", e.target.value)}
+              placeholder="0.00"
+              error={errors.salePrice}
+            />
+          </div>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Input
+              id="buyerName"
+              label="Buyer Name"
+              value={form.buyerName}
+              onChange={(e) => set("buyerName", e.target.value)}
+            />
+            <Input
+              id="buyerContact"
+              label="Buyer Contact"
+              value={form.buyerContact}
+              onChange={(e) => set("buyerContact", e.target.value)}
+            />
+          </div>
+          <TextArea
+            id="saleNotes"
+            label="Sale Notes"
+            value={form.saleNotes}
+            onChange={(e) => set("saleNotes", e.target.value)}
+            rows={2}
+          />
+        </div>
+      )}
+
+      {form.status === "SOLD" && hasExistingSale && (
+        <p className="text-xs text-text-light">
+          This {config.singular} already has a recorded sale. Cancel the sale from the Financials page to record a new one.
+        </p>
+      )}
 
       {/* Photo upload */}
       <div>
