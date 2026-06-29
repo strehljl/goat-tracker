@@ -55,7 +55,7 @@ export default function HerdPage() {
   const { activeConfig, activeHerd } = useFarm();
   const [animals, setAnimals] = useState<Animal[]>([]);
   const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState("");
+  const [search, setSearch] = useState(searchParams.get("search") ?? "");
   const [statusFilter, setStatusFilter] = useState(searchParams.get("status") ?? "");
   const [genderFilter, setGenderFilter] = useState(searchParams.get("gender") ?? "");
   const [locationFilter, setLocationFilter] = useState(searchParams.get("locationId") ?? "");
@@ -97,6 +97,19 @@ export default function HerdPage() {
     const timer = setTimeout(fetchAnimals, 300);
     return () => clearTimeout(timer);
   }, [fetchAnimals]);
+
+  // Keep filters in the URL so they survive navigating to an animal and back
+  useEffect(() => {
+    const params = new URLSearchParams();
+    if (search) params.set("search", search);
+    if (statusFilter) params.set("status", statusFilter);
+    if (genderFilter) params.set("gender", genderFilter);
+    if (locationFilter) params.set("locationId", locationFilter);
+    if (bornThisYear) params.set("bornThisYear", "true");
+    const query = params.toString();
+    router.replace(query ? `/herd?${query}` : "/herd", { scroll: false });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [search, statusFilter, genderFilter, locationFilter, bornThisYear]);
 
   const handleCreate = async (data: AnimalFormData) => {
     const res = await fetch("/api/animals", {

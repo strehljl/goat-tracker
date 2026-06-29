@@ -194,9 +194,7 @@ export default function AnimalDetailPage({ params }: { params: Promise<{ id: str
           </div>
         </div>
         <div className="flex gap-2">
-          <Link href="/herd">
-            <Button variant="outline" size="sm">Back</Button>
-          </Link>
+          <Button variant="outline" size="sm" onClick={() => router.back()}>Back</Button>
           <Button size="sm" onClick={() => setShowEditModal(true)}>Edit</Button>
           <Button variant="danger" size="sm" onClick={handleDelete} loading={deleting}>
             Delete
