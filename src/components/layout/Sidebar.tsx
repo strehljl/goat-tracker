@@ -7,6 +7,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { signOut } from "next-auth/react";
 import { useRef, useState } from "react";
 import { useFarm } from "@/components/providers/FarmProvider";
+import { getAnimalConfig } from "@/lib/animalConfig";
 
 const navItems = [
   {
@@ -227,7 +228,7 @@ export default function Sidebar() {
                     >
                       <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                     </svg>
-                    <span className="text-base leading-none">{activeConfig?.emoji ?? "🐾"}</span>
+                    <span className="text-base leading-none">{getAnimalConfig(herd.animalType).emoji}</span>
                     <span className="truncate">{herd.name}</span>
                   </button>
                 ))}

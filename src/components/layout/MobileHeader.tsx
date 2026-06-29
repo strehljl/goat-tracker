@@ -7,6 +7,7 @@ import { useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useFarm } from "@/components/providers/FarmProvider";
+import { getAnimalConfig } from "@/lib/animalConfig";
 
 function FarmAvatar({ name, imageUrl, size = 16 }: { name: string; imageUrl: string | null; size?: number }) {
   if (imageUrl) {
@@ -126,7 +127,7 @@ export default function MobileHeader() {
                         >
                           <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                         </svg>
-                        <span className="text-base leading-none">{activeConfig?.emoji ?? "🐾"}</span>
+                        <span className="text-base leading-none">{getAnimalConfig(herd.animalType).emoji}</span>
                         <span className="truncate">{herd.name}</span>
                       </button>
                     ))}
