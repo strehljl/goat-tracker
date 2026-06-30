@@ -320,18 +320,14 @@ export default function FinancialsPage() {
                         {!!s.buyerName && <span>Buyer: {s.buyerName as string}</span>}
                       </div>
                     </div>
-                    <button
-                      onClick={(e) => { e.stopPropagation(); setEditSale(s); }}
-                      className="ml-2 shrink-0 text-xs text-primary hover:underline"
-                    >
-                      Edit
-                    </button>
-                    <button
-                      onClick={(e) => { e.stopPropagation(); handleCancelSale(s.id as string, animal.name); }}
-                      className="ml-2 shrink-0 text-xs text-error hover:underline"
-                    >
-                      Cancel Sale
-                    </button>
+                    <div className="ml-2 flex shrink-0 items-center gap-2">
+                      <Button size="sm" variant="outline" onClick={(e) => { e.stopPropagation(); setEditSale(s); }}>
+                        Edit
+                      </Button>
+                      <Button size="sm" variant="danger" onClick={(e) => { e.stopPropagation(); handleCancelSale(s.id as string, animal.name); }}>
+                        Cancel Sale
+                      </Button>
+                    </div>
                   </div>
                 );
               })}
