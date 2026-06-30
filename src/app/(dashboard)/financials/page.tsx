@@ -61,6 +61,7 @@ export default function FinancialsPage() {
   const [showBulkModal, setShowBulkModal] = useState(false);
   const [categoryFilter, setCategoryFilter] = useState("");
   const [selectedSaleIds, setSelectedSaleIds] = useState<Set<string>>(new Set());
+  const [editSale, setEditSale] = useState<Record<string, unknown> | null>(null);
 
   const activeAnimals = useMemo(() => animals.filter((a) => a.status === "ACTIVE"), [animals]);
 
@@ -320,6 +321,12 @@ export default function FinancialsPage() {
                       </div>
                     </div>
                     <button
+                      onClick={(e) => { e.stopPropagation(); setEditSale(s); }}
+                      className="ml-2 shrink-0 text-xs text-primary hover:underline"
+                    >
+                      Edit
+                    </button>
+                    <button
                       onClick={(e) => { e.stopPropagation(); handleCancelSale(s.id as string, animal.name); }}
                       className="ml-2 shrink-0 text-xs text-error hover:underline"
                     >
@@ -347,6 +354,14 @@ export default function FinancialsPage() {
         title="Bulk Record Sales"
         className="max-w-xl max-h-[90vh] overflow-y-auto">
         <BulkSaleForm animals={activeAnimals} animalLabel={animalLabel} animalsLabel={activeConfig?.plural ?? "animals"} onSuccess={() => { setShowBulkModal(false); refreshAll(); }} onCancel={() => setShowBulkModal(false)} />
+      </Modal>
+
+      <Modal open={!!editSale} onClose={() => setEditSale(null)}
+        title="Edit Sale"
+        className="max-w-lg max-h-[90vh] overflow-y-auto">
+        {editSale && (
+          <EditSaleForm sale={editSale} onSuccess={() => { setEditSale(null); refreshAll(); }} onCancel={() => setEditSale(null)} />
+        )}
       </Modal>
     </div>
   );
@@ -556,6 +571,52 @@ function SaleForm({ animals, animalLabel, onSuccess, onCancel }: FormProps) {
       <div className="flex justify-end gap-3">
         <Button type="button" variant="outline" onClick={onCancel}>Cancel</Button>
         <Button type="submit" loading={loading}>Record Sale</Button>
+      </div>
+    </form>
+  );
+}
+
+function EditSaleForm({ sale, onSuccess, onCancel }: { sale: Record<string, unknown>; onSuccess: () => void; onCancel: () => void }) {
+  const animal = sale.animal as { name: string; tagId: string };
+  const [form, setForm] = useState({
+    saleDate: (sale.saleDate as string).split("T")[0],
+    salePrice: String(sale.salePrice),
+    buyerName: (sale.buyerName as string | null) ?? "",
+    buyerContact: (sale.buyerContact as string | null) ?? "",
+    notes: (sale.notes as string | null) ?? "",
+  });
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true); setError("");
+    try {
+      const res = await fetch(`/api/financials/sales/${sale.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(form) });
+      if (!res.ok) throw new Error((await res.json()).error);
+      onSuccess();
+    } catch (err) { setError(err instanceof Error ? err.message : "Failed"); }
+    finally { setLoading(false); }
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4">
+      {error && <div className="rounded-lg bg-error/10 px-4 py-3 text-sm text-error">{error}</div>}
+      <p className="text-sm text-text-light">
+        <span className="font-medium text-text">{animal.name}</span> #{animal.tagId}
+      </p>
+      <div className="grid gap-4 sm:grid-cols-2">
+        <Input id="edit-sale-price" label="Sale Price ($) *" type="number" step="0.01" min="0" value={form.salePrice} onChange={(e) => setForm({ ...form, salePrice: e.target.value })} required />
+        <Input id="edit-sale-date" label="Sale Date *" type="date" value={form.saleDate} onChange={(e) => setForm({ ...form, saleDate: e.target.value })} required />
+      </div>
+      <div className="grid gap-4 sm:grid-cols-2">
+        <Input id="edit-sale-buyer" label="Buyer Name" value={form.buyerName} onChange={(e) => setForm({ ...form, buyerName: e.target.value })} />
+        <Input id="edit-sale-contact" label="Buyer Contact" value={form.buyerContact} onChange={(e) => setForm({ ...form, buyerContact: e.target.value })} />
+      </div>
+      <TextArea id="edit-sale-notes" label="Notes" value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} rows={2} />
+      <div className="flex justify-end gap-3">
+        <Button type="button" variant="outline" onClick={onCancel}>Cancel</Button>
+        <Button type="submit" loading={loading}>Save Changes</Button>
       </div>
     </form>
   );
