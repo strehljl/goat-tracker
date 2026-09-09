@@ -447,11 +447,13 @@ function BreedingForm({ females, males, config, initialData, onSubmit, onCancel,
       <Select id="b-female" label={`${femaleLabel} *`} value={form.parentFemaleId}
         onChange={(e) => setForm({ ...form, parentFemaleId: e.target.value })}
         options={females.map((f) => ({ value: f.id, label: `${f.name} (#${f.tagId})` }))}
-        placeholder={`Select ${femaleLabel.toLowerCase()}`} />
+        placeholder={females.length === 0 ? `No active ${femaleLabel.toLowerCase()}s found` : `Select ${femaleLabel.toLowerCase()}`}
+        disabled={females.length === 0} />
       <Select id="b-male" label={`${maleLabel} *`} value={form.parentMaleId}
         onChange={(e) => setForm({ ...form, parentMaleId: e.target.value })}
         options={males.map((m) => ({ value: m.id, label: `${m.name} (#${m.tagId})` }))}
-        placeholder={`Select ${maleLabel.toLowerCase()}`} />
+        placeholder={males.length === 0 ? `No active ${maleLabel.toLowerCase()}s found` : `Select ${maleLabel.toLowerCase()}`}
+        disabled={males.length === 0} />
       <div className="grid gap-4 sm:grid-cols-2">
         <Input id="b-date" label="Breeding Date *" type="date" value={form.breedingDate} onChange={(e) => {
           const breedingDate = e.target.value;
@@ -567,7 +569,8 @@ function MassBreedingForm({ females, males, config, onSuccess, onCancel }: {
       <Select id="mb-male" label={`${maleLabel} *`} value={form.parentMaleId}
         onChange={(e) => setForm({ ...form, parentMaleId: e.target.value })}
         options={males.map((m) => ({ value: m.id, label: `${m.name} (#${m.tagId})` }))}
-        placeholder={`Select ${maleLabel.toLowerCase()}`} />
+        placeholder={males.length === 0 ? `No active ${maleLabel.toLowerCase()}s found` : `Select ${maleLabel.toLowerCase()}`}
+        disabled={males.length === 0} />
       <FemaleCheckboxList females={females} label={femaleLabel} selected={selectedFemaleIds} onChange={setSelectedFemaleIds} />
       <div className="grid gap-4 sm:grid-cols-2">
         <Input id="mb-date" label="Breeding Date *" type="date" value={form.breedingDate}
