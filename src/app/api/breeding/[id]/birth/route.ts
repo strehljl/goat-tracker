@@ -148,11 +148,37 @@ export async function PUT(
             },
           });
 
+          const name = (o.name || "").trim();
+          const tagId = (o.tagId || "").trim();
+
           if (updated.animalId) {
+            // Already registered — keep gender in sync, and name/tagId if provided
             await tx.animal.update({
               where: { id: updated.animalId },
-              data: { gender: o.gender },
+              data: { gender: o.gender, ...(name && tagId ? { name, tagId } : {}) },
             });
+          } else if (name && tagId) {
+            // Not yet registered — register it now that name/tag are known
+            const femaleParent = await tx.animal.findUnique({
+              where: { id: event.parentFemaleId },
+              select: { herdId: true },
+            });
+
+            const newAnimal = await tx.animal.create({
+              data: {
+                farmId,
+                herdId: femaleParent?.herdId ?? null,
+                name,
+                tagId,
+                gender: o.gender,
+                dateOfBirth: updatedRecord.birthDate,
+                damId: event.parentFemaleId || null,
+                sireId: event.parentMaleId || null,
+                status: "ACTIVE",
+              },
+            });
+
+            await tx.offspring.update({ where: { id: o.id }, data: { animalId: newAnimal.id } });
           }
         }
       }

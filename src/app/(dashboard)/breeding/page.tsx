@@ -170,7 +170,7 @@ export default function BreedingPage() {
     birthDate: string;
     complications: string;
     notes: string;
-    offspring: { id: string; gender: string; birthWeight: string; status: string }[];
+    offspring: { id: string; gender: string; birthWeight: string; status: string; name: string; tagId: string }[];
   }) => {
     if (!editBirth) return;
     const res = await fetch(`/api/breeding/${editBirth.id}/birth`, {
@@ -707,7 +707,7 @@ function BirthForm({ breedingEventId, config, onSuccess, onCancel }: {
   );
 }
 
-interface EditOffspringEntry { id: string; gender: string; birthWeight: string; status: string; animalName: string | null; animalTagId: string | null }
+interface EditOffspringEntry { id: string; gender: string; birthWeight: string; status: string; name: string; tagId: string; hadAnimal: boolean }
 
 function EditBirthForm({ birthRecord, config, onSubmit, onCancel }: {
   birthRecord: {
@@ -717,7 +717,7 @@ function EditBirthForm({ birthRecord, config, onSubmit, onCancel }: {
     offspring: { id: string; gender: string; birthWeight: string | null; status: string; animal: { name: string; tagId: string } | null }[];
   };
   config: AnimalConfig | null;
-  onSubmit: (data: { birthDate: string; complications: string; notes: string; offspring: { id: string; gender: string; birthWeight: string; status: string }[] }) => Promise<void>;
+  onSubmit: (data: { birthDate: string; complications: string; notes: string; offspring: { id: string; gender: string; birthWeight: string; status: string; name: string; tagId: string }[] }) => Promise<void>;
   onCancel: () => void;
 }) {
   const [birthDate, setBirthDate] = useState(birthRecord.birthDate.split("T")[0]);
@@ -729,8 +729,9 @@ function EditBirthForm({ birthRecord, config, onSubmit, onCancel }: {
       gender: o.gender,
       birthWeight: o.birthWeight ?? "",
       status: o.status,
-      animalName: o.animal?.name ?? null,
-      animalTagId: o.animal?.tagId ?? null,
+      name: o.animal?.name ?? "",
+      tagId: o.animal?.tagId ?? "",
+      hadAnimal: !!o.animal,
     }))
   );
   const [loading, setLoading] = useState(false);
@@ -738,8 +739,10 @@ function EditBirthForm({ birthRecord, config, onSubmit, onCancel }: {
 
   const birthNoun = config?.breedingTerms.birthEventNoun ?? "Birth";
   const offspringSingular = config?.breedingTerms.offspringSingular ?? "Offspring";
+  const singularCapitalized = config?.singularCapitalized ?? "Animal";
+  const tagIdPlaceholder = config?.tagIdPlaceholder ?? "e.g. AN-001";
 
-  const updateOffspring = (i: number, field: "gender" | "birthWeight" | "status", value: string) => {
+  const updateOffspring = (i: number, field: "gender" | "birthWeight" | "status" | "name" | "tagId", value: string) => {
     const updated = [...offspring];
     updated[i] = { ...updated[i], [field]: value };
     setOffspring(updated);
@@ -757,11 +760,17 @@ function EditBirthForm({ birthRecord, config, onSubmit, onCancel }: {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true); setError("");
+    setError("");
+    const incomplete = offspring.find((o) => !!o.name.trim() !== !!o.tagId.trim());
+    if (incomplete) {
+      setError(`Enter both a name and tag ID to register a ${singularCapitalized.toLowerCase()} (or leave both blank).`);
+      return;
+    }
+    setLoading(true);
     try {
       await onSubmit({
         birthDate, complications, notes,
-        offspring: offspring.map(({ id, gender, birthWeight, status }) => ({ id, gender, birthWeight, status })),
+        offspring: offspring.map(({ id, gender, birthWeight, status, name, tagId }) => ({ id, gender, birthWeight, status, name, tagId })),
       });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed");
@@ -783,9 +792,18 @@ function EditBirthForm({ birthRecord, config, onSubmit, onCancel }: {
           <label className="mb-2 block text-sm font-medium text-text">{config?.breedingTerms.offspringPlural ?? "Offspring"}</label>
           {offspring.map((o, i) => (
             <div key={o.id} className="mb-3 rounded-lg border border-border bg-background p-3 space-y-3">
-              <span className="text-sm font-medium text-text">
-                {o.animalName ? `${o.animalName} (#${o.animalTagId})` : `${offspringSingular} #${i + 1}`}
-              </span>
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-medium text-text">{offspringSingular} #{i + 1}</span>
+                {o.hadAnimal && <Badge variant="success">Registered</Badge>}
+              </div>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <Input id={`eo-${i}-name`} label="Name" value={o.name}
+                  onChange={(e) => updateOffspring(i, "name", e.target.value)}
+                  placeholder={`${offspringSingular} name`} />
+                <Input id={`eo-${i}-tag`} label="Tag ID" value={o.tagId}
+                  onChange={(e) => updateOffspring(i, "tagId", e.target.value)}
+                  placeholder={tagIdPlaceholder} />
+              </div>
               <div className="grid gap-3 sm:grid-cols-3">
                 <Select id={`eo-${i}-gender`} label="Gender" value={o.gender}
                   onChange={(e) => updateOffspring(i, "gender", e.target.value)}
