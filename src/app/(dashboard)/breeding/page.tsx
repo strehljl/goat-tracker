@@ -26,6 +26,7 @@ interface BreedingEvent {
     id: string;
     birthDate: string;
     complications: string | null;
+    notes: string | null;
     offspring: { id: string; gender: string; birthWeight: string | null; status: string; animal: { name: string; tagId: string } | null }[];
   } | null;
 }
@@ -51,6 +52,7 @@ export default function BreedingPage() {
   const [showMassModal, setShowMassModal] = useState(false);
   const [birthEvent, setBirthEvent] = useState<BreedingEvent | null>(null);
   const [editEvent, setEditEvent] = useState<BreedingEvent | null>(null);
+  const [editBirth, setEditBirth] = useState<BreedingEvent | null>(null);
   const [statusFilter, setStatusFilter] = useState("");
   const [selectedEventIds, setSelectedEventIds] = useState<Set<string>>(new Set());
 
@@ -161,6 +163,23 @@ export default function BreedingPage() {
     });
     if (!res.ok) throw new Error((await res.json()).error);
     setEditEvent(null);
+    fetchEvents();
+  };
+
+  const handleEditBirth = async (data: {
+    birthDate: string;
+    complications: string;
+    notes: string;
+    offspring: { id: string; gender: string; birthWeight: string; status: string }[];
+  }) => {
+    if (!editBirth) return;
+    const res = await fetch(`/api/breeding/${editBirth.id}/birth`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+    });
+    if (!res.ok) throw new Error((await res.json()).error);
+    setEditBirth(null);
     fetchEvents();
   };
 
@@ -301,12 +320,15 @@ export default function BreedingPage() {
 
             {event.birthRecord && (
               <div className="mt-3 rounded-lg bg-background p-3">
-                <p className="text-sm font-medium text-text">
-                  {birthNoun}: {formatDate(event.birthRecord.birthDate)}
-                  {event.birthRecord.complications && (
-                    <span className="ml-2 text-xs text-error">Complications: {event.birthRecord.complications}</span>
-                  )}
-                </p>
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-sm font-medium text-text">
+                    {birthNoun}: {formatDate(event.birthRecord.birthDate)}
+                    {event.birthRecord.complications && (
+                      <span className="ml-2 text-xs text-error">Complications: {event.birthRecord.complications}</span>
+                    )}
+                  </p>
+                  <Button size="sm" variant="outline" onClick={() => setEditBirth(event)}>Edit {birthNoun}</Button>
+                </div>
                 {event.birthRecord.offspring.length > 0 && (
                   <ul className="mt-2 space-y-1">
                     {event.birthRecord.offspring.map((o) => (
@@ -372,6 +394,21 @@ export default function BreedingPage() {
             breedingEventId={birthEvent.id} config={config}
             onSuccess={() => { setBirthEvent(null); fetchEvents(); }}
             onCancel={() => setBirthEvent(null)}
+          />
+        )}
+      </Modal>
+
+      <Modal
+        open={!!editBirth}
+        onClose={() => setEditBirth(null)}
+        title={`Edit ${birthNoun} — ${editBirth?.parentFemale.name}`}
+        className="max-w-lg max-h-[90vh] overflow-y-auto"
+      >
+        {editBirth?.birthRecord && (
+          <EditBirthForm
+            birthRecord={editBirth.birthRecord} config={config}
+            onSubmit={handleEditBirth}
+            onCancel={() => setEditBirth(null)}
           />
         )}
       </Modal>
@@ -662,6 +699,108 @@ function BirthForm({ breedingEventId, config, onSuccess, onCancel }: {
       <div className="flex justify-end gap-3">
         <Button type="button" variant="outline" onClick={onCancel}>Cancel</Button>
         <Button type="submit" loading={loading}>Record {birthNoun}</Button>
+      </div>
+    </form>
+  );
+}
+
+interface EditOffspringEntry { id: string; gender: string; birthWeight: string; status: string; animalName: string | null; animalTagId: string | null }
+
+function EditBirthForm({ birthRecord, config, onSubmit, onCancel }: {
+  birthRecord: {
+    birthDate: string;
+    complications: string | null;
+    notes: string | null;
+    offspring: { id: string; gender: string; birthWeight: string | null; status: string; animal: { name: string; tagId: string } | null }[];
+  };
+  config: AnimalConfig | null;
+  onSubmit: (data: { birthDate: string; complications: string; notes: string; offspring: { id: string; gender: string; birthWeight: string; status: string }[] }) => Promise<void>;
+  onCancel: () => void;
+}) {
+  const [birthDate, setBirthDate] = useState(birthRecord.birthDate.split("T")[0]);
+  const [complications, setComplications] = useState(birthRecord.complications ?? "");
+  const [notes, setNotes] = useState(birthRecord.notes ?? "");
+  const [offspring, setOffspring] = useState<EditOffspringEntry[]>(
+    birthRecord.offspring.map((o) => ({
+      id: o.id,
+      gender: o.gender,
+      birthWeight: o.birthWeight ?? "",
+      status: o.status,
+      animalName: o.animal?.name ?? null,
+      animalTagId: o.animal?.tagId ?? null,
+    }))
+  );
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  const birthNoun = config?.breedingTerms.birthEventNoun ?? "Birth";
+  const offspringSingular = config?.breedingTerms.offspringSingular ?? "Offspring";
+
+  const updateOffspring = (i: number, field: "gender" | "birthWeight" | "status", value: string) => {
+    const updated = [...offspring];
+    updated[i] = { ...updated[i], [field]: value };
+    setOffspring(updated);
+  };
+
+  const genderOptions = config
+    ? [
+        { value: "FEMALE", label: config.genderLabels.FEMALE },
+        { value: "MALE", label: config.genderLabels.MALE },
+      ]
+    : [
+        { value: "FEMALE", label: "Female" },
+        { value: "MALE", label: "Male" },
+      ];
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true); setError("");
+    try {
+      await onSubmit({
+        birthDate, complications, notes,
+        offspring: offspring.map(({ id, gender, birthWeight, status }) => ({ id, gender, birthWeight, status })),
+      });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed");
+    } finally { setLoading(false); }
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4">
+      {error && <div className="rounded-lg bg-error/10 px-4 py-3 text-sm text-error">{error}</div>}
+      <Input id="eb-date" label={`${birthNoun} Date *`} type="date" value={birthDate}
+        onChange={(e) => setBirthDate(e.target.value)} required />
+      <TextArea id="eb-comp" label="Complications" value={complications}
+        onChange={(e) => setComplications(e.target.value)} rows={2} />
+      <TextArea id="eb-notes" label="Notes" value={notes}
+        onChange={(e) => setNotes(e.target.value)} rows={2} />
+
+      {offspring.length > 0 && (
+        <div>
+          <label className="mb-2 block text-sm font-medium text-text">{config?.breedingTerms.offspringPlural ?? "Offspring"}</label>
+          {offspring.map((o, i) => (
+            <div key={o.id} className="mb-3 rounded-lg border border-border bg-background p-3 space-y-3">
+              <span className="text-sm font-medium text-text">
+                {o.animalName ? `${o.animalName} (#${o.animalTagId})` : `${offspringSingular} #${i + 1}`}
+              </span>
+              <div className="grid gap-3 sm:grid-cols-3">
+                <Select id={`eo-${i}-gender`} label="Gender" value={o.gender}
+                  onChange={(e) => updateOffspring(i, "gender", e.target.value)}
+                  options={genderOptions} />
+                <Input id={`eo-${i}-weight`} label="Birth Weight (lbs)" type="number" step="0.01"
+                  value={o.birthWeight} onChange={(e) => updateOffspring(i, "birthWeight", e.target.value)} />
+                <Select id={`eo-${i}-status`} label="Status" value={o.status}
+                  onChange={(e) => updateOffspring(i, "status", e.target.value)}
+                  options={[{ value: "ALIVE", label: "Alive" }, { value: "STILLBORN", label: "Stillborn" }]} />
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <div className="flex justify-end gap-3">
+        <Button type="button" variant="outline" onClick={onCancel}>Cancel</Button>
+        <Button type="submit" loading={loading}>Save Changes</Button>
       </div>
     </form>
   );

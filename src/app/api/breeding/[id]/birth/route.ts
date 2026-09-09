@@ -95,3 +95,73 @@ export async function POST(
     return errorResponse(error, "Failed to record birth");
   }
 }
+
+// PUT /api/breeding/[id]/birth — edit an existing birth record and its offspring
+export async function PUT(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const auth = await requireFarm();
+  if (auth instanceof NextResponse) return auth;
+  const { farmId } = auth;
+
+  const { id: breedingEventId } = await params;
+
+  try {
+    const { birthDate, complications, notes, offspring } = await request.json();
+
+    if (!birthDate) {
+      return NextResponse.json({ error: "Birth date is required" }, { status: 400 });
+    }
+
+    const event = await prisma.breedingEvent.findFirst({
+      where: { id: breedingEventId, farmId },
+      include: { birthRecord: { include: { offspring: true } } },
+    });
+
+    if (!event || !event.birthRecord) {
+      return NextResponse.json({ error: "Birth record not found" }, { status: 404 });
+    }
+
+    const existingOffspringIds = new Set(event.birthRecord.offspring.map((o) => o.id));
+
+    const result = await prisma.$transaction(async (tx) => {
+      const updatedRecord = await tx.birthRecord.update({
+        where: { id: event.birthRecord!.id },
+        data: {
+          birthDate: new Date(birthDate),
+          complications: complications || null,
+          notes: notes || null,
+        },
+      });
+
+      if (Array.isArray(offspring)) {
+        for (const o of offspring) {
+          if (!o.id || !existingOffspringIds.has(o.id)) continue;
+
+          const updated = await tx.offspring.update({
+            where: { id: o.id },
+            data: {
+              birthWeight: o.birthWeight ? parseFloat(o.birthWeight) : null,
+              status: o.status || "ALIVE",
+              gender: o.gender,
+            },
+          });
+
+          if (updated.animalId) {
+            await tx.animal.update({
+              where: { id: updated.animalId },
+              data: { gender: o.gender },
+            });
+          }
+        }
+      }
+
+      return updatedRecord;
+    });
+
+    return NextResponse.json(result);
+  } catch (error) {
+    return errorResponse(error, "Failed to update birth record");
+  }
+}
