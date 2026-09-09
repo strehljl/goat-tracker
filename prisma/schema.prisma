@@ -132,6 +132,7 @@ model Animal {
   photoUrl            String?
   purchaseDate        DateTime?
   purchasePrice       Decimal?        @db.Decimal(10, 2)
+  deceasedDate        DateTime?
   damId               String?
   sireId              String?
   locationId          String?

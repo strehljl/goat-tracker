@@ -33,7 +33,7 @@ export async function GET(request: NextRequest) {
         orderBy: { name: "asc" },
       });
 
-      csv = "Name,Tag ID,Breed,Date of Birth,Gender,Color/Markings,Location,Status,Purchase Date,Purchase Price,Dam,Sire,Herd,Notes\n";
+      csv = "Name,Tag ID,Breed,Date of Birth,Gender,Color/Markings,Location,Status,Purchase Date,Purchase Price,Date of Death,Dam,Sire,Herd,Notes\n";
       for (const a of animals) {
         csv += [
           quote(a.name),
@@ -46,6 +46,7 @@ export async function GET(request: NextRequest) {
           a.status,
           a.purchaseDate ? a.purchaseDate.toISOString().split("T")[0] : "",
           a.purchasePrice ? Number(a.purchasePrice).toFixed(2) : "",
+          a.deceasedDate ? a.deceasedDate.toISOString().split("T")[0] : "",
           a.dam ? `${a.dam.name} (${a.dam.tagId})` : "",
           a.sire ? `${a.sire.name} (${a.sire.tagId})` : "",
           quote(a.herd?.name || ""),

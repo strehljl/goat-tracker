@@ -22,6 +22,7 @@ interface Animal {
   gender: string;
   status: string;
   photoUrl: string | null;
+  deceasedDate: string | null;
   location: { id: string; name: string } | null;
   sale: { saleDate: string } | null;
   dam: { id: string; name: string; tagId: string } | null;
@@ -148,6 +149,7 @@ export default function HerdPage() {
       else if (sortField === "status") { va = a.status; vb = b.status; }
       else if (sortField === "location") { va = a.location?.name ?? null; vb = b.location?.name ?? null; }
       else if (sortField === "saleDate") { va = a.sale?.saleDate ?? null; vb = b.sale?.saleDate ?? null; }
+      else if (sortField === "deceasedDate") { va = a.deceasedDate; vb = b.deceasedDate; }
 
       if (va == null && vb == null) return 0;
       if (va == null) return sortDir === "asc" ? 1 : -1;
@@ -243,6 +245,16 @@ export default function HerdPage() {
             header: "Sold Date",
             sortable: true,
             render: (animal: Animal) => formatDate(animal.sale?.saleDate ?? null),
+          },
+        ]
+      : []),
+    ...(statusFilter === "DECEASED"
+      ? [
+          {
+            key: "deceasedDate",
+            header: "Date of Death",
+            sortable: true,
+            render: (animal: Animal) => formatDate(animal.deceasedDate),
           },
         ]
       : []),

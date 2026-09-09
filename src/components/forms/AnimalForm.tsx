@@ -30,6 +30,7 @@ export interface AnimalFormData {
   photoUrl: string;
   purchaseDate: string;
   purchasePrice: string;
+  deceasedDate: string;
   damId: string;
   sireId: string;
   locationId: string;
@@ -68,6 +69,7 @@ const emptyForm: AnimalFormData = {
   photoUrl: "",
   purchaseDate: "",
   purchasePrice: "",
+  deceasedDate: "",
   damId: "",
   sireId: "",
   locationId: "",
@@ -130,6 +132,7 @@ export default function AnimalForm({
   };
 
   const showSaleFields = form.status === "SOLD" && !hasExistingSale;
+  const showDeceasedField = form.status === "DECEASED";
 
   const validate = (): boolean => {
     const errs: Record<string, string> = {};
@@ -140,6 +143,7 @@ export default function AnimalForm({
       if (!form.saleDate) errs.saleDate = "Sale date is required";
       if (!form.salePrice || parseFloat(form.salePrice) <= 0) errs.salePrice = "Sale price is required";
     }
+    if (showDeceasedField && !form.deceasedDate) errs.deceasedDate = "Date of death is required";
     setErrors(errs);
     return Object.keys(errs).length === 0;
   };
@@ -355,6 +359,17 @@ export default function AnimalForm({
         <p className="text-xs text-text-light">
           This {config.singular} already has a recorded sale. Cancel the sale from the Financials page to record a new one.
         </p>
+      )}
+
+      {showDeceasedField && (
+        <Input
+          id="deceasedDate"
+          label="Date of Death *"
+          type="date"
+          value={form.deceasedDate}
+          onChange={(e) => set("deceasedDate", e.target.value)}
+          error={errors.deceasedDate}
+        />
       )}
 
       {/* Photo upload */}

@@ -23,6 +23,7 @@ interface AnimalDetail {
   photoUrl: string | null;
   purchaseDate: string | null;
   purchasePrice: string | null;
+  deceasedDate: string | null;
   status: string;
   notes: string | null;
   createdAt: string;
@@ -154,6 +155,7 @@ export default function AnimalDetailPage({ params }: { params: Promise<{ id: str
     photoUrl: animal.photoUrl || "",
     purchaseDate: animal.purchaseDate ? animal.purchaseDate.split("T")[0] : "",
     purchasePrice: animal.purchasePrice || "",
+    deceasedDate: animal.deceasedDate ? animal.deceasedDate.split("T")[0] : "",
     damId: animal.dam?.id || "",
     sireId: animal.sire?.id || "",
     locationId: animal.location?.id || "",
@@ -216,6 +218,9 @@ export default function AnimalDetailPage({ params }: { params: Promise<{ id: str
               <DetailRow label="Color/Markings" value={animal.colorMarkings || "—"} />
               <DetailRow label="Purchase Date" value={formatDate(animal.purchaseDate)} />
               <DetailRow label="Purchase Price" value={formatCurrency(animal.purchasePrice)} />
+              {animal.status === "DECEASED" && (
+                <DetailRow label="Date of Death" value={formatDate(animal.deceasedDate)} />
+              )}
               <DetailRow label="Added" value={formatDate(animal.createdAt)} />
               {animal.notes && <DetailRow label="Notes" value={animal.notes} />}
             </dl>
