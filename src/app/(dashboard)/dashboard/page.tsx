@@ -1,11 +1,21 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
 import Card, { CardHeader, CardTitle, CardContent } from "@/components/ui/Card";
 import Badge from "@/components/ui/Badge";
+import Button from "@/components/ui/Button";
+import Modal from "@/components/ui/Modal";
+import Input from "@/components/ui/Input";
+import TextArea from "@/components/ui/TextArea";
 import Skeleton from "@/components/ui/Skeleton";
 import { useFarm } from "@/components/providers/FarmProvider";
+
+interface HerdNote {
+  id: string;
+  date: string;
+  note: string;
+}
 
 interface DashboardData {
   stats: {
@@ -53,6 +63,10 @@ export default function DashboardPage() {
   const { activeConfig, activeHerd } = useFarm();
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [herdNotes, setHerdNotes] = useState<HerdNote[]>([]);
+  const [notesLoading, setNotesLoading] = useState(false);
+  const [showNoteModal, setShowNoteModal] = useState(false);
+  const [editNote, setEditNote] = useState<HerdNote | null>(null);
 
   useEffect(() => {
     setLoading(true);
@@ -66,6 +80,44 @@ export default function DashboardPage() {
       .catch(console.error)
       .finally(() => setLoading(false));
   }, [activeHerd?.id]);
+
+  const fetchHerdNotes = useCallback(async () => {
+    if (!activeHerd?.id) { setHerdNotes([]); return; }
+    setNotesLoading(true);
+    try {
+      const res = await fetch(`/api/herds/${activeHerd.id}/notes`);
+      setHerdNotes(res.ok ? await res.json() : []);
+    } catch (error) {
+      console.error("Failed to fetch herd notes:", error);
+    } finally {
+      setNotesLoading(false);
+    }
+  }, [activeHerd?.id]);
+
+  useEffect(() => { fetchHerdNotes(); }, [fetchHerdNotes]);
+
+  const handleSaveNote = async (formData: { date: string; note: string }) => {
+    if (!activeHerd?.id) return;
+    const url = editNote
+      ? `/api/herds/${activeHerd.id}/notes/${editNote.id}`
+      : `/api/herds/${activeHerd.id}/notes`;
+    const res = await fetch(url, {
+      method: editNote ? "PUT" : "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(formData),
+    });
+    if (!res.ok) throw new Error((await res.json()).error);
+    setShowNoteModal(false);
+    setEditNote(null);
+    fetchHerdNotes();
+  };
+
+  const handleDeleteNote = async (noteId: string) => {
+    if (!activeHerd?.id) return;
+    if (!confirm("Delete this note?")) return;
+    await fetch(`/api/herds/${activeHerd.id}/notes/${noteId}`, { method: "DELETE" });
+    fetchHerdNotes();
+  };
 
   const statCards = activeConfig
     ? [
@@ -271,7 +323,96 @@ export default function DashboardPage() {
             </CardContent>
           </Card>
         )}
+
+        {/* Herd Notes */}
+        {activeHerd && (
+          <Card className="lg:col-span-2">
+            <CardHeader className="flex flex-row items-center justify-between">
+              <CardTitle>Herd Notes</CardTitle>
+              <Button size="sm" onClick={() => { setEditNote(null); setShowNoteModal(true); }}>
+                + Add Note
+              </Button>
+            </CardHeader>
+            <CardContent>
+              {notesLoading ? (
+                <Skeleton className="h-16 rounded-lg" />
+              ) : herdNotes.length === 0 ? (
+                <p className="text-sm text-text-light">
+                  No notes yet. Use this for general observations about the herd — pasture rotations, weather, predator activity, and so on.
+                </p>
+              ) : (
+                <ul className="space-y-3">
+                  {herdNotes.map((n) => (
+                    <li
+                      key={n.id}
+                      className="flex items-start justify-between gap-3 rounded-lg bg-background px-3 py-2"
+                    >
+                      <div>
+                        <p className="text-xs text-text-light">{formatDate(n.date)}</p>
+                        <p className="mt-0.5 text-sm text-text whitespace-pre-wrap">{n.note}</p>
+                      </div>
+                      <div className="flex shrink-0 items-center gap-2">
+                        <Button size="sm" variant="outline" onClick={() => { setEditNote(n); setShowNoteModal(true); }}>
+                          Edit
+                        </Button>
+                        <Button size="sm" variant="danger" onClick={() => handleDeleteNote(n.id)}>
+                          Delete
+                        </Button>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </CardContent>
+          </Card>
+        )}
       </div>
+
+      <Modal
+        open={showNoteModal}
+        onClose={() => { setShowNoteModal(false); setEditNote(null); }}
+        title={editNote ? "Edit Herd Note" : "Add Herd Note"}
+        className="max-w-lg"
+      >
+        <NoteForm
+          initialData={editNote ?? undefined}
+          onSubmit={handleSaveNote}
+          onCancel={() => { setShowNoteModal(false); setEditNote(null); }}
+        />
+      </Modal>
     </div>
+  );
+}
+
+function NoteForm({ initialData, onSubmit, onCancel }: {
+  initialData?: { date: string; note: string };
+  onSubmit: (data: { date: string; note: string }) => Promise<void>;
+  onCancel: () => void;
+}) {
+  const [date, setDate] = useState(initialData?.date ? initialData.date.split("T")[0] : new Date().toISOString().split("T")[0]);
+  const [note, setNote] = useState(initialData?.note ?? "");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true); setError("");
+    try {
+      await onSubmit({ date, note });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed");
+    } finally { setLoading(false); }
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4">
+      {error && <div className="rounded-lg bg-error/10 px-4 py-3 text-sm text-error">{error}</div>}
+      <Input id="note-date" label="Date *" type="date" value={date} onChange={(e) => setDate(e.target.value)} required />
+      <TextArea id="note-text" label="Note *" value={note} onChange={(e) => setNote(e.target.value)} rows={4} required />
+      <div className="flex justify-end gap-3">
+        <Button type="button" variant="outline" onClick={onCancel}>Cancel</Button>
+        <Button type="submit" loading={loading}>Save</Button>
+      </div>
+    </form>
   );
 }
