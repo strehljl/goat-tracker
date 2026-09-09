@@ -292,9 +292,13 @@ export default function BreedingPage() {
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <div className="flex items-center gap-2">
-                  <span className="font-medium text-text">{event.parentFemale.name}</span>
+                  <span className="font-medium text-text">
+                    {event.parentFemale.name} <span className="font-normal text-text-light">#{event.parentFemale.tagId}</span>
+                  </span>
                   <span className="text-text-light">x</span>
-                  <span className="font-medium text-text">{event.parentMale.name}</span>
+                  <span className="font-medium text-text">
+                    {event.parentMale.name} <span className="font-normal text-text-light">#{event.parentMale.tagId}</span>
+                  </span>
                   <Badge variant={statusColors[event.status] || "default"}>{event.status}</Badge>
                 </div>
                 <div className="mt-1 flex gap-4 text-xs text-text-light">
