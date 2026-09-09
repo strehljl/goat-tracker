@@ -51,6 +51,7 @@ export async function POST(
               select: { herdId: true },
             });
 
+            const isStillborn = o.status === "STILLBORN";
             const animal = await tx.animal.create({
               data: {
                 farmId,
@@ -61,7 +62,8 @@ export async function POST(
                 dateOfBirth: new Date(birthDate),
                 damId: parentEvent.parentFemaleId || null,
                 sireId: parentEvent.parentMaleId || null,
-                status: "ACTIVE",
+                status: isStillborn ? "DECEASED" : "ACTIVE",
+                deceasedDate: isStillborn ? new Date(birthDate) : null,
               },
             });
             animalId = animal.id;
@@ -150,12 +152,19 @@ export async function PUT(
 
           const name = (o.name || "").trim();
           const tagId = (o.tagId || "").trim();
+          const isStillborn = o.status === "STILLBORN";
 
           if (updated.animalId) {
-            // Already registered — keep gender in sync, and name/tagId if provided
+            // Already registered — keep gender in sync, name/tagId if provided, and
+            // force to Deceased if marked stillborn (never force back to Active, in
+            // case the animal's status has since diverged for unrelated reasons)
             await tx.animal.update({
               where: { id: updated.animalId },
-              data: { gender: o.gender, ...(name && tagId ? { name, tagId } : {}) },
+              data: {
+                gender: o.gender,
+                ...(name && tagId ? { name, tagId } : {}),
+                ...(isStillborn ? { status: "DECEASED", deceasedDate: updatedRecord.birthDate } : {}),
+              },
             });
           } else if (name && tagId) {
             // Not yet registered — register it now that name/tag are known
@@ -174,7 +183,8 @@ export async function PUT(
                 dateOfBirth: updatedRecord.birthDate,
                 damId: event.parentFemaleId || null,
                 sireId: event.parentMaleId || null,
-                status: "ACTIVE",
+                status: isStillborn ? "DECEASED" : "ACTIVE",
+                deceasedDate: isStillborn ? updatedRecord.birthDate : null,
               },
             });
 
